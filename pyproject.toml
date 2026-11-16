@@ -1,0 +1,52 @@
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14"]
+build-backend = "uv_build"
+
+[project]
+name = "cypher-dsl"
+version = "0.1.0a1"
+description = "CPython DSl to constuct Cypher queries."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = []
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
+  "Typing :: Typed",
+]
+
+[dependency-groups]
+tools = ["click>=8.1"]
+dev = [{include-group = "tools"}, "nox>=2026.10.20", "ruff>=0.9", "mypy>=1.13"]
+test = [{include-group = "tools"}, "pytest>=8.3", "pytest-cov>=6"]
+docs = ["sphinx>=8", "sphinx-autoapi"]
+audit = [{include-group = "tools"}, "neo4j>=6.1,<7"]
+
+[tool.uv.build-backend]
+module-name = "cypher_dsl"
+source-include = ["tests/**", "docs/**", "tools/**", "noxfile.py", "Makefile", "uv.lock"]
+source-exclude = ["docs/_build/**", "docs/_generated/**", ".cache/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/cypher_dsl"]
+addopts = "--strict-markers"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+files = ["src", "tests/typing"]

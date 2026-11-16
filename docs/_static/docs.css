@@ -1,0 +1,8 @@
+/* Code blocks keep Alabaster's line height and vertical padding, but use a narrow
+   horizontal inset and a smaller font. The theme's 30px sides and 0.9em code size shrink
+   the code column to about 69 characters, and its line-highlight rule already assumes a
+   12px inset. At 0.8em the desktop column fits 77 characters. */
+pre {
+    font-size: 0.8em;
+    padding: 7px 12px;
+}

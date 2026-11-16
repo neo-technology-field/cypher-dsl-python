@@ -1,0 +1,60 @@
+# Read-only checks. The workflow discovers the jobs from Nox once, then runs each unique
+# session in its own job. It never publishes, pushes or requests a write token.
+#
+# Action pins resolve to commits of the versions verified while planning this increment:
+#   actions/checkout@v7.0.1        -> 3d3c42e5aac5ba805825da76410c181273ba90b1
+#   actions/setup-python@v7.1.0    -> 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+#   astral-sh/setup-uv@v10.3.3     -> 68559e99cc807c1eb7e9238fd43a15bba460eec2
+# Resolved on 2026-11-13 through the GitHub REST API; annotated tags were dereferenced
+# before recording. Do not replace them with unverified future tags.
+
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover Nox sessions
+    runs-on: ubuntu-latest
+    outputs:
+      jobs: ${{ steps.matrix.outputs.jobs }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install the newest supported Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - name: Derive the job matrix from Nox
+        id: matrix
+        run: |
+          uv run --frozen nox -t ci --list --json > "$RUNNER_TEMP/nox-sessions.json"
+          jobs="$(uv run --frozen python tools/ci_sessions.py "$RUNNER_TEMP/nox-sessions.json")"
+          echo "jobs=${jobs}" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: ${{ matrix.session }}
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.jobs) }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install the job's Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - name: Run ${{ matrix.session }}
+        run: uv run --frozen nox -s "${{ matrix.session }}"

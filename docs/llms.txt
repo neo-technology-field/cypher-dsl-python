@@ -1,0 +1,23 @@
+# cypher-dsl-python
+
+> Build Cypher queries as Python syntax objects and render them to text plus parameters. No runtime dependencies, no database connection and no driver.
+
+## Start here
+
+- [Getting started](getting-started.html): install, build and render a statement, read related nodes, write data.
+- [Describe nodes and relationships](patterns.html): labels, variables, property maps, relationship chains, reusing bound patterns.
+- [Read and filter data](reading.html): optional matches, conditions, functions, projections, ordering and pagination.
+- [Create, merge, update and delete](writing.html): identity merges, SET forms, REMOVE, DELETE and dynamic property names.
+- [Compose query parts and unions](composing.html): WITH as a scope boundary, per-part ordering, UNION and reusing statements.
+
+## Reference
+
+- [Parameters and values](parameters.html): bound and unbound parameters, `lit()`, escaping, snapshotted containers.
+- [Choose a target](targets.html): declared releases, language selection, capability floors and name escaping.
+- [Render and run the query](running.html): renderer lifecycle, render results, driver handoff, logging, testing application queries.
+- [Which errors the library raises](errors.html): the DslError family and when each class is raised.
+- [API reference](api.html): every public class and function.
+
+## Everything on one page
+
+- [llms-full.txt](llms-full.txt): the published pages and the API reference, concatenated in reading order.

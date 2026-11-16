@@ -1,0 +1,60 @@
+cypher-dsl-python
+
+An independent implementation of a Cypher query DSL in Python. It is not an official Neo4j
+product. No endorsement, governance, ownership or release process has been agreed with
+Neo4j, Inc.
+
+Derived material
+
+The AST vocabulary, the dialect names, the rendering and escaping rules and many test
+scenarios derive from the Java project Neo4j Cypher-DSL,
+https://github.com/neo4j/cypher-dsl, which is distributed under the Apache License,
+Version 2.0.
+
+  Copyright (c) 2019-2026 "Neo4j,"
+  Neo4j Sweden AB [https://neo4j.com]
+
+  Licensed under the Apache License, Version 2.0. The full text is in LICENSE.
+
+Credit for the original implementation and the original test suite belongs to that
+project and its contributors.
+
+The correspondence was traced against neo4j/cypher-dsl at commit d3b17e42, one commit
+after release 2025.3.6. Only that state was traced; material added upstream after it is
+not claimed.
+
+Where the code corresponds
+
+  src/cypher_dsl/render/        rendering order, dialect names, escaping, literals
+  src/cypher_dsl/clauses/       clause order and clause-local placement
+  src/cypher_dsl/expressions/   function names, operators and predicates
+  src/cypher_dsl/patterns/      pattern identity, direction and chains
+  src/cypher_dsl/statements.py  finalisation, unions and decorations
+
+Modules that exist only for this implementation include the error types,
+render/bindings.py, render/capabilities.py and the comparison and traversal helpers in
+syntax.py.
+
+Ported tests
+
+Many test scenarios and their expected Cypher come from the upstream test suite. Where a
+Python test module was traced to a specific upstream test file, the module names that file
+in a comment at the top. Modules without that comment hold contracts for this
+implementation, and their derivation was not traced.
+
+Changes to the derived material
+
+  - Java source and tests are translated to Python. The public surface is built from
+    factory functions, Python operators and keyword arguments, as recorded in
+    docs/adr/0002-port-vocabulary-not-java-api.md.
+  - Tests are rewritten for pytest. JUnit, AssertJ and generated model support are not
+    carried over.
+  - Rendering that intentionally differs is stated beside the expectation that pins it,
+    rather than left implicit.
+
+Licensing
+
+The distribution as a whole is released under the Apache License, Version 2.0. See
+LICENSE. Derived material stays under the upstream Apache-2.0 terms, and the copyright
+notice above applies to it. Apache-2.0 grants no rights in the Neo4j or Cypher
+trademarks.
