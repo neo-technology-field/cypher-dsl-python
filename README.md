@@ -135,6 +135,7 @@ repository-only Markdown and is not part of the published site:
 ```sh
 make deps          # uv sync --group dev --group test
 make test          # uv run --group test pytest
+make matrix        # every session once on every supported interpreter
 make lint
 make format-check
 make typing

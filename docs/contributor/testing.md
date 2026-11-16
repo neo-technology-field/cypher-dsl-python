@@ -16,6 +16,16 @@ Adding a public name fails that file until an example exists, and changing a ren
 rule fails it with the text that changed. The expectations are the contract, not a
 transcription of current output.
 
+## Which interpreters run the tests
+
+`make test` runs the suite on the current interpreter only. `make matrix` runs every Nox
+session once on each supported CPython minor, 3.11 to 3.15, plus quality, docs and
+package. The checks workflow runs the same matrix.
+
+Run the matrix before pushing a change that touches interpreter-sensitive code such as
+`typing`, `inspect` or `dataclasses`. A single-interpreter run cannot see behaviour that
+moved between versions, as when Python 3.14 unified `typing.Union` with `types.UnionType`.
+
 ## Check the rendered corpus against a server
 
 The unit suite proves what the text is, not that a server parses it. The audit tool

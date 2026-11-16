@@ -161,11 +161,23 @@ EXTRA_OBJECTS = (
 )
 
 
+def _is_type_alias(value: object) -> bool:
+    """Return whether a public name is a union type alias rather than a callable.
+
+    Before Python 3.14 a ``typing.Union`` alias is a callable that is not a
+    ``types.UnionType``, while 3.14 unified the two representations. The alias kinds must
+    therefore be recognised before the function set is built, on every supported version.
+    """
+    return typing.get_origin(value) in (typing.Union, types.UnionType)
+
+
 def _public_functions() -> set[str]:
     return {
         name
         for name in cypher_dsl.__all__
-        if callable(getattr(cypher_dsl, name)) and not inspect.isclass(getattr(cypher_dsl, name))
+        if callable(getattr(cypher_dsl, name))
+        and not inspect.isclass(getattr(cypher_dsl, name))
+        and not _is_type_alias(getattr(cypher_dsl, name))
     }
 
 
@@ -223,6 +235,6 @@ def test_every_public_class_is_produced_by_an_example() -> None:
 
 
 def test_public_aliases_and_sentinels_are_declared_kinds() -> None:
-    aliases = {name for name in cypher_dsl.__all__ if isinstance(getattr(cypher_dsl, name), types.UnionType)}
+    aliases = {name for name in cypher_dsl.__all__ if _is_type_alias(getattr(cypher_dsl, name))}
     assert aliases == {"ExpressionInput", "FrozenValue", "LiteralInput", "ProjectionInput", "RenderInput"}
     assert cypher_dsl.UNBOUND is not None and not callable(cypher_dsl.UNBOUND)
