@@ -36,8 +36,8 @@ jobs:
       - name: Derive the job matrix from Nox
         id: matrix
         run: |
-          uv run --frozen nox -t ci --list --json > "$RUNNER_TEMP/nox-sessions.json"
-          jobs="$(uv run --frozen python tools/ci_sessions.py "$RUNNER_TEMP/nox-sessions.json")"
+          uv run nox -t ci --list --json > "$RUNNER_TEMP/nox-sessions.json"
+          jobs="$(uv run python tools/ci_sessions.py "$RUNNER_TEMP/nox-sessions.json")"
           echo "jobs=${jobs}" >> "$GITHUB_OUTPUT"
 
   checks:
@@ -57,4 +57,4 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
       - name: Run ${{ matrix.session }}
-        run: uv run --frozen nox -s "${{ matrix.session }}"
+        run: uv run nox -s "${{ matrix.session }}"

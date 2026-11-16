@@ -9,31 +9,31 @@ deps:  ## Install the locked development and test groups.
 	uv sync --group dev --group test
 
 test:  ## Run the unit suite on the current interpreter.
-	uv run --frozen pytest
+	uv run --group test pytest
 
 test-cov:  ## Run the unit suite on the current interpreter and report coverage.
-	uv run --frozen pytest --cov=cypher_dsl --cov-report=term-missing
+	uv run --group test pytest --cov=cypher_dsl --cov-report=term-missing
 
 lint:  ## Check the source with Ruff.
-	uv run --frozen ruff check .
+	uv run ruff check .
 
 format:  ## Format the source with Ruff.
-	uv run --frozen ruff format .
+	uv run ruff format .
 
 format-check:  ## Check formatting without writing.
-	uv run --frozen ruff format --check .
+	uv run ruff format --check .
 
 typing:  ## Run mypy in strict mode.
-	uv run --frozen mypy
+	uv run mypy
 
 docs:  ## Build the documentation without network access.
-	uv run --frozen nox -s docs
+	uv run nox -s docs
 
 package:  ## Build an sdist and wheel, then smoke the installed wheel.
-	uv run --frozen nox -s package
+	uv run nox -s package
 
 cypher-audit:  ## Check rendered statements against a running server (NEO4J_PASSWORD required).
-	uv run --frozen --group audit python -m tools.check_cypher
+	uv run --group audit python -m tools.check_cypher
 
 matrix:  ## Run every unique Nox job once through the aggregate session.
-	uv run --frozen nox -s matrix
+	uv run nox -s matrix

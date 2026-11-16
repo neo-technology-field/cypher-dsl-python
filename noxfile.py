@@ -36,7 +36,7 @@ nox.options.error_on_missing_interpreters = True
 
 
 def sync_groups(session: nox.Session, groups: tuple[str, ...]) -> None:
-    """Install dependency groups non-editably from the lockfile.
+    """Install dependency groups non-editably for the session.
 
     The package is reinstalled on every sync. Without that, uv keeps an earlier
     non-editable copy on disk and the session would test a stale revision of the source
@@ -49,7 +49,6 @@ def sync_groups(session: nox.Session, groups: tuple[str, ...]) -> None:
     arguments = [
         "uv",
         "sync",
-        "--locked",
         "--no-default-groups",
         "--no-editable",
         f"--python={session.virtualenv.location}",

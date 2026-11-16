@@ -8,6 +8,11 @@ The library covers a read and write subset of Cypher 5. It has no runtime depend
 ships `py.typed` and never opens a connection. Drivers, transactions and schema
 installation belong to the application or its test harness.
 
+## Documentation
+
+The user guide and API reference are published at
+https://neo-technology-field.github.io/cypher-dsl-python/.
+
 ## Install
 
 ```sh
@@ -129,7 +134,7 @@ repository-only Markdown and is not part of the published site:
 
 ```sh
 make deps          # uv sync --group dev --group test
-make test          # uv run --frozen pytest
+make test          # uv run --group test pytest
 make lint
 make format-check
 make typing

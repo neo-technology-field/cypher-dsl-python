@@ -29,8 +29,8 @@ Start a server you own, then run the audit with its credentials:
 ```sh
 docker run --rm -p 7687:7687 -e NEO4J_AUTH=neo4j/audit-password neo4j:2026.10.2-community
 
-make cypher-audit                       # uv run --frozen --group audit python -m tools.check_cypher
-uv run --frozen --group audit python -m tools.check_cypher --password audit-password
+make cypher-audit                       # uv run --group audit python -m tools.check_cypher
+uv run --group audit python -m tools.check_cypher --password audit-password
 ```
 
 The tool loads `tools/record_cypher.py` as a pytest plugin, which wraps `Renderer.render`
@@ -56,7 +56,7 @@ driver, and it is tooling: neither the unit suite nor the runtime needs it.
 
 ## Packaging sessions
 
-`uv run --frozen nox -s package` builds an sdist, asserts the contributor documentation is
+`uv run nox -s package` builds an sdist, asserts the contributor documentation is
 inside it, builds the wheel from that sdist, installs only the wheel with `--no-deps`, and
 runs `tests/smoke/check_install.py` under `python -I` from a temporary directory. The
 smoke check asserts an empty `Requires-Dist` and that the installed distribution imports
