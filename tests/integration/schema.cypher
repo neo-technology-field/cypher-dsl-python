@@ -1,4 +1,0 @@
-CREATE CONSTRAINT plan_person_uid IF NOT EXISTS
-FOR (p:PlanPerson) REQUIRE p.uid IS UNIQUE;
-CREATE CONSTRAINT plan_movie_uid IF NOT EXISTS
-FOR (m:PlanMovie) REQUIRE m.uid IS UNIQUE;
