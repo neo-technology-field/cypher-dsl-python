@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING
 
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError, EmptyPatternError
-from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.operators import Condition
-from cypher_dsl.patterns.nodes import PatternElement, PatternProperties
-from cypher_dsl.syntax import AstNode, _require_tuple
+from cypher_dsl.patterns.nodes import PatternElement, require_explicit_properties
+from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.statements.builder import StatementBuilder
@@ -69,7 +68,7 @@ class MatchClause(Clause):
         for pattern in self.patterns:
             if not isinstance(pattern, PatternElement):
                 raise DslError(f"MATCH accepts pattern elements, not {type(pattern).__name__}.")
-            _require_explicit_properties(pattern)
+            require_explicit_properties(pattern, "MATCH", "Use explicit property entries or map_() in the pattern.")
 
     def children(self) -> tuple[AstNode, ...]:
         """Expose the patterns, followed by the filter when one is attached."""
@@ -90,23 +89,6 @@ class MatchClause(Clause):
         """
         combined = predicate if self.where is None else self.where.predicate & predicate
         return MatchClause(self.patterns, self.optional, Where(combined))
-
-
-def _require_explicit_properties(pattern: PatternElement) -> None:
-    """
-    Reject a whole-map value where a read pattern needs explicit property entries.
-
-    An explicit mapping and a map expression both render ``{key: value}`` entries, so
-    both are explicit. A parameter, variable or other expression stands for a whole map
-    at runtime, which a read pattern cannot use as entries.
-    """
-    for properties in pattern.property_maps():
-        if isinstance(properties, (PatternProperties, MapExpression)):
-            continue
-        raise DslError(
-            "MATCH does not support a whole-map expression as pattern properties. "
-            "Use explicit property entries or map_() in the pattern."
-        )
 
 
 def match(*patterns: PatternElement) -> StatementBuilder:

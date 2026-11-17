@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import cast
 
 from cypher_dsl.clauses.base import Clause
+from cypher_dsl.clauses.call import SubqueryCallClause, _coerce_import, _finalise_subquery
 from cypher_dsl.clauses.match import MatchClause
 from cypher_dsl.clauses.projection import ProjectionOwner, ReturnClause, WithClause
 from cypher_dsl.clauses.unwind import UnwindClause
@@ -36,15 +37,16 @@ from cypher_dsl.expressions.base import (
 from cypher_dsl.expressions.operators import Condition
 from cypher_dsl.expressions.values import SortItem, SymbolicName, Variable, lit
 from cypher_dsl.patterns.nodes import PatternElement
-from cypher_dsl.statements.composition import Statement
-from cypher_dsl.statements.scope import _Scope, _scope_after
+from cypher_dsl.statements.composition import Statement, UnionStatement
+from cypher_dsl.statements.frames import ScopeFrame
+from cypher_dsl.statements.rules import frame_after, validate_clause
+from cypher_dsl.statements.rules.projection import validate_projection_modifiers
 from cypher_dsl.statements.validation import (
-    _current_part_has_update,
-    _require_update_position,
-    _validate_clause,
-    _validate_projection_modifiers,
+    require_appendable,
+    require_read_position,
+    require_update_position,
 )
-from cypher_dsl.syntax import _require_tuple
+from cypher_dsl.ast import _require_tuple
 
 
 def returning(*expressions: ProjectionInput) -> StatementBuilder:
@@ -121,7 +123,7 @@ class StatementBuilder:
             raise InvalidClauseOrderError("RETURN must be the final clause and can appear only once in a statement.")
         items = tuple(_coerce_projection(expression) for expression in expressions)
         clause = ReturnClause(items)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def with_(self, *expressions: ProjectionInput) -> StatementBuilder:
@@ -145,11 +147,10 @@ class StatementBuilder:
         """
         if not expressions:
             raise DslError("WITH requires at least one projection item.")
-        if self.clauses and isinstance(self.clauses[-1], ReturnClause):
-            raise InvalidClauseOrderError("WITH must precede RETURN in a statement.")
+        require_appendable(self.clauses, "WITH")
         items = tuple(_coerce_projection(expression) for expression in expressions)
         clause = WithClause(items)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def match(self, *patterns: PatternElement) -> StatementBuilder:
@@ -212,14 +213,101 @@ class StatementBuilder:
             InvalidClauseOrderError: If the statement ends in ``RETURN``, or an updating
                 clause in the same query part has no ``WITH`` boundary before it.
         """
-        if self.clauses and isinstance(self.clauses[-1], ReturnClause):
-            raise InvalidClauseOrderError("UNWIND must precede RETURN in a statement.")
-        if _current_part_has_update(self.clauses):
-            raise InvalidClauseOrderError(
-                "UNWIND after an updating clause needs a WITH boundary. Add with_() before reading again."
-            )
+        require_read_position(self.clauses, "UNWIND")
         clause = UnwindClause(coerce_expression(values), variable)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
+        return StatementBuilder((*self.clauses, clause))
+
+    def call(
+        self,
+        subquery: Statement | UnionStatement | StatementBuilder,
+        imports: tuple[str | Variable, ...] = (),
+        import_all: bool = False,
+        in_transactions: bool | ExpressionInput = False,
+    ) -> StatementBuilder:
+        """
+        Append a ``CALL`` subquery clause and return a new builder.
+
+        The call renders the variable scope clause and runs the body once per incoming
+        row. The body sees outer variables only through ``imports`` or ``import_all``,
+        and the names its final ``RETURN`` projects become available to the clauses
+        after the call.
+
+        Args:
+            subquery: Finalised statement, union or builder for the body.
+            imports: Outer variables the scope clause passes into the body. A bare
+                string is a variable name.
+            import_all: Render ``(*)`` and pass every outer variable into the body.
+            in_transactions: Run the body in separate inner transactions. ``True``
+                renders the bare modifier. A positive integer literal, parameter or
+                expression renders ``OF ... ROWS``.
+
+        Returns:
+            A new builder ending in the ``CALL`` clause.
+
+        Raises:
+            DslError: If the body is not finalisable, an import is not a variable name,
+                named imports and ``import_all`` are combined, or the row count is
+                invalid.
+            InvalidClauseOrderError: If the statement already ends in ``RETURN``, or an
+                updating clause in the current query part has no ``WITH`` boundary in
+                front of the call.
+        """
+        return self._with_subquery_call(subquery, imports, import_all, False, in_transactions)
+
+    def optional_call(
+        self,
+        subquery: Statement | UnionStatement | StatementBuilder,
+        imports: tuple[str | Variable, ...] = (),
+        import_all: bool = False,
+        in_transactions: bool | ExpressionInput = False,
+    ) -> StatementBuilder:
+        """
+        Append an ``OPTIONAL CALL`` subquery clause and return a new builder.
+
+        Rows the body produces no output for survive with ``null`` bindings, the same
+        way ``OPTIONAL MATCH`` keeps rows without a match.
+
+        Args:
+            subquery: Finalised statement, union or builder for the body.
+            imports: Outer variables the scope clause passes into the body.
+            import_all: Render ``(*)`` and pass every outer variable into the body.
+            in_transactions: Run the body in separate inner transactions. ``True``
+                renders the bare modifier. A positive integer literal, parameter or
+                expression renders ``OF ... ROWS``.
+
+        Returns:
+            A new builder ending in the ``OPTIONAL CALL`` clause.
+
+        Raises:
+            DslError: If the body is not finalisable, an import is not a variable name,
+                named imports and ``import_all`` are combined, or the row count is
+                invalid.
+            InvalidClauseOrderError: If the statement already ends in ``RETURN``, or an
+                updating clause in the current query part has no ``WITH`` boundary in
+                front of the call.
+        """
+        return self._with_subquery_call(subquery, imports, import_all, True, in_transactions)
+
+    def _with_subquery_call(
+        self,
+        subquery: Statement | UnionStatement | StatementBuilder,
+        imports: tuple[str | Variable, ...],
+        import_all: bool,
+        optional: bool,
+        in_transactions: bool | ExpressionInput,
+    ) -> StatementBuilder:
+        require_read_position(self.clauses, "CALL")
+        finalised = _finalise_subquery(subquery)
+        coerced = tuple(_coerce_import(item) for item in imports)
+        if in_transactions is True or in_transactions is False:
+            modifier = in_transactions
+            rows = None
+        else:
+            modifier = True
+            rows = coerce_expression(in_transactions)
+        clause = SubqueryCallClause(finalised, coerced, import_all, optional, modifier, rows)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def create(self, *patterns: PatternElement) -> StatementBuilder:
@@ -242,10 +330,9 @@ class StatementBuilder:
             DslError: If a pattern is not a pattern element.
             InvalidClauseOrderError: If the statement already ends in ``RETURN``.
         """
-        if self.clauses and isinstance(self.clauses[-1], ReturnClause):
-            raise InvalidClauseOrderError("CREATE must precede RETURN in a statement.")
+        require_appendable(self.clauses, "CREATE")
         clause = CreateClause(patterns)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def merge(self, pattern: PatternElement) -> StatementBuilder:
@@ -268,10 +355,9 @@ class StatementBuilder:
                 property expression.
             InvalidClauseOrderError: If the statement already ends in ``RETURN``.
         """
-        if self.clauses and isinstance(self.clauses[-1], ReturnClause):
-            raise InvalidClauseOrderError("MERGE must precede RETURN in a statement.")
+        require_appendable(self.clauses, "MERGE")
         clause = MergeClause(pattern)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def on_create(self, *updates: Assignment) -> StatementBuilder:
@@ -329,9 +415,9 @@ class StatementBuilder:
         """
         if not updates:
             raise DslError("SET requires at least one update.")
-        _require_update_position(self.clauses, "SET")
+        require_update_position(self.clauses, "SET")
         clause = SetClause(tuple(updates))
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def remove(self, *targets: Expression | LabelUpdate) -> StatementBuilder:
@@ -353,9 +439,9 @@ class StatementBuilder:
         """
         if not targets:
             raise DslError("REMOVE requires at least one target.")
-        _require_update_position(self.clauses, "REMOVE")
+        require_update_position(self.clauses, "REMOVE")
         clause = RemoveClause(tuple(targets))
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def delete(self, *targets: ExpressionInput) -> StatementBuilder:
@@ -431,7 +517,7 @@ class StatementBuilder:
                 "After UNWIND, add with_() before filtering."
             )
         updated = owner.with_where(condition)
-        _validate_clause(_scope_before_owner(self.clauses), updated)
+        validate_clause(_scope_before_owner(self.clauses), updated)
         return StatementBuilder((*self.clauses[:-1], updated))
 
     def distinct(self) -> StatementBuilder:
@@ -451,7 +537,7 @@ class StatementBuilder:
         """
         owner = self._projection_owner("DISTINCT")
         updated = replace(owner, distinct=True)
-        _validate_clause(_scope_before_owner(self.clauses), updated)
+        validate_clause(_scope_before_owner(self.clauses), updated)
         return self._replace_owner(updated)
 
     def order_by(self, *items: ExpressionInput | SortItem) -> StatementBuilder:
@@ -477,7 +563,7 @@ class StatementBuilder:
         owner = self._projection_owner("ORDER BY")
         coerced = tuple(item if isinstance(item, SortItem) else coerce_expression(item) for item in items)
         updated = replace(owner, order_by=(*owner.order_by, *coerced))
-        _validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
+        validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
         return self._replace_owner(updated)
 
     def skip(self, value: int | Expression) -> StatementBuilder:
@@ -500,7 +586,7 @@ class StatementBuilder:
             raise DslError("SKIP is already set on this projection. A statement has one SKIP position.")
         expression = coerce_expression(value)
         updated = replace(owner, skip=expression)
-        _validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
+        validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
         return self._replace_owner(updated)
 
     def limit(self, value: int | Expression) -> StatementBuilder:
@@ -523,7 +609,7 @@ class StatementBuilder:
             raise DslError("LIMIT is already set on this projection. A statement has one LIMIT position.")
         expression = coerce_expression(value)
         updated = replace(owner, limit=expression)
-        _validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
+        validate_projection_modifiers(_scope_before_owner(self.clauses), updated)
         return self._replace_owner(updated)
 
     def _with_merge_action(self, keyword: str, updates: tuple[Assignment, ...]) -> StatementBuilder:
@@ -534,31 +620,26 @@ class StatementBuilder:
             raise InvalidClauseOrderError(f"{keyword} must immediately follow the MERGE clause it belongs to.")
         action = MergeAction(keyword, tuple(updates))
         updated = owner.with_action(action)
-        _validate_clause(_scope_after(self.clauses[:-1]), updated)
+        validate_clause(frame_after(self.clauses[:-1]), updated)
         return StatementBuilder((*self.clauses[:-1], updated))
 
     def _with_delete(self, targets: tuple[ExpressionInput, ...], detach: bool) -> StatementBuilder:
         keyword = "DETACH DELETE" if detach else "DELETE"
         if not targets:
             raise DslError(f"{keyword} requires at least one target.")
-        _require_update_position(self.clauses, keyword)
+        require_update_position(self.clauses, keyword)
         # DeleteClause validates that every coerced target is a Variable, so the cast
         # records what that check proves rather than weakening the stored field type.
         clause = DeleteClause(
             cast("tuple[Variable, ...]", tuple(coerce_expression(target) for target in targets)), detach
         )
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def _with_pattern_clause(self, patterns: tuple[PatternElement, ...], optional: bool) -> StatementBuilder:
-        if self.clauses and isinstance(self.clauses[-1], ReturnClause):
-            raise InvalidClauseOrderError("MATCH must precede RETURN in a statement.")
-        if _current_part_has_update(self.clauses):
-            raise InvalidClauseOrderError(
-                "MATCH after an updating clause needs a WITH boundary. Add with_() before reading again."
-            )
+        require_read_position(self.clauses, "MATCH")
         clause = MatchClause(patterns, optional)
-        _validate_clause(_scope_after(self.clauses), clause)
+        validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
     def _projection_owner(self, action: str) -> ProjectionOwner:
@@ -602,9 +683,9 @@ def _coerce_projection(value: ProjectionInput) -> Expression:
     return lit(value)
 
 
-def _scope_before_owner(clauses: tuple[Clause, ...]) -> _Scope:
-    """Return the scope the current projection reads from, before it cuts the scope."""
-    return _scope_after(clauses[:-1])
+def _scope_before_owner(clauses: tuple[Clause, ...]) -> ScopeFrame:
+    """Return the frame the current projection reads from."""
+    return frame_after(clauses[:-1])
 
 
 __all__ = [

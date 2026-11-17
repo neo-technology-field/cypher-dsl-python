@@ -233,8 +233,8 @@ is rejected. A conflicting label or property declaration on a bound endpoint is 
 rather than silently discarded. Every written relationship needs one type. Only ``CREATE``
 also requires a direction.
 
-Combine conditions and raw text
--------------------------------
+Combine conditions with the DSL operators
+-----------------------------------------
 
 Python cannot overload ``and``, ``or`` or ``not``, so a condition tree uses ``&``, ``|``
 and ``~``. Keep each comparison in its own parentheses, because Python binds ``&`` tighter
@@ -291,34 +291,43 @@ Comparing an expression with ``None`` builds ``IS NULL``:
       WHERE p.nickname IS NULL AND p.rating > $min_rating
     RETURN p.display_name
 
-``raw(text)`` emits trusted expression text unchanged. It covers a function or operand this
-release does not model:
+.. _raw-expression:
+
+Escape to raw expression text
+-----------------------------
+
+``raw(text)`` emits trusted expression text unchanged. It covers expression syntax with no
+builder in this release, such as the regular-expression match operator:
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration, Renderer, match, node, raw
+    from cypher_dsl import Configuration, Renderer, condition, match, node, raw
 
     person = node("Person", name="p")
-    statement = match(person).returning(raw("toUpper(p.display_name)"))
+    statement = (
+        match(person)
+        .where(condition(raw("p.email =~ '(?i)ada.*'")))
+        .returning(person)
+    )
     renderer = Renderer.get(Configuration(server_version="5.26"))
     print(renderer.render(statement).cypher)
 
 .. code-block:: cypher
 
-    MATCH (p:Person) RETURN toUpper(p.display_name)
+    MATCH (p:Person) WHERE p.email =~ '(?i)ada.*' RETURN p
 
 Nothing escapes or validates that text, and a server may still reject it. Supply only
-expression text that you have checked yourself.
+expression text that you have checked yourself. It is an expression, so it cannot express a
+whole clause. A raw expression used where a predicate belongs goes through ``condition()``.
+To call a function by name, use ``fn``, described under :ref:`functions`.
 
 What is not available
 ---------------------
 
 - No OGM, driver connection, transaction or schema installation. Those belong to the
   caller's application or test harness.
-- No ``CALL`` subqueries, ``SEARCH``, path selectors, quantified path patterns or
-  catalogue analysis in this release.
-- No pretty printing. ``pretty_print=True`` raises ``UnsupportedFeatureError`` instead of
-  being accepted and ignored.
+- No ``CALL`` procedures (``CALL db.labels()``, ``YIELD``), ``SEARCH``, path selectors,
+  quantified path patterns or catalogue analysis in this release.
 - No Cypher parser. The input is Python construction, not query text.
 - No automatic parameterization. A caller decides what becomes a parameter.
 - No inline bytes literal. Bind ``bytes`` with ``param()`` and pass it to the driver.

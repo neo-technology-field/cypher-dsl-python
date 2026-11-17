@@ -10,6 +10,7 @@ from cypher_dsl.api import (
     assign,
     asterisk,
     boolean_operation,
+    call,
     condition,
     count,
     create,
@@ -24,6 +25,7 @@ from cypher_dsl.api import (
     merge,
     name,
     node,
+    optional_call,
     optional_match,
     param,
     raw,
@@ -35,6 +37,7 @@ from cypher_dsl.api import (
     with_,
 )
 from cypher_dsl.clauses.base import Clause
+from cypher_dsl.clauses.call import SubqueryCallClause
 from cypher_dsl.clauses.match import MatchClause, Where
 from cypher_dsl.clauses.projection import ReturnClause, WithClause
 from cypher_dsl.clauses.unwind import UnwindClause
@@ -81,7 +84,7 @@ from cypher_dsl.render.configuration import Configuration
 from cypher_dsl.render.renderer import Rendered, Renderer, RenderInput
 from cypher_dsl.statements.builder import StatementBuilder
 from cypher_dsl.statements.composition import Statement, UnionStatement
-from cypher_dsl.syntax import AstNode, structurally_equal
+from cypher_dsl.ast import AstNode, structurally_equal
 
 __all__ = [
     "UNBOUND",
@@ -131,6 +134,7 @@ __all__ = [
     "SortOrder",
     "Statement",
     "StatementBuilder",
+    "SubqueryCallClause",
     "SubscriptExpression",
     "SymbolicName",
     "UnaryOperation",
@@ -144,6 +148,7 @@ __all__ = [
     "assign",
     "asterisk",
     "boolean_operation",
+    "call",
     "condition",
     "count",
     "create",
@@ -159,6 +164,7 @@ __all__ = [
     "merge",
     "name",
     "node",
+    "optional_call",
     "optional_match",
     "param",
     "raw",

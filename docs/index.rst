@@ -40,6 +40,7 @@ string interpolation.
    reading
    writing
    composing
+   subqueries
    parameters
    targets
    running

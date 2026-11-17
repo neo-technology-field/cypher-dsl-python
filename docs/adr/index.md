@@ -11,6 +11,7 @@ record, so a superseded decision stays readable and its links keep working.
 - [0005 - Inline literals and explicit parameters](0005-inline-literals-and-explicit-parameters.md)
 - [0006 - Keep the runtime independent of drivers](0006-keep-runtime-independent-of-drivers.md)
 - [0007 - Support upstream-maintained Python](0007-support-upstream-maintained-python.md)
+- [0008 - Carry scope in frames and construct behaviour in registered rules](0008-carry-scope-in-frames-and-registered-rules.md)
 
 These records are repository documentation and are not part of the published Sphinx site.
 New records copy `template.md` and take the next number. The template is not itself a

@@ -7,7 +7,7 @@ from cypher_dsl.render.context import RenderContext
 from cypher_dsl.render.expressions import grouped
 from cypher_dsl.render.fragments import Fragment
 from cypher_dsl.render.rules import RenderingRules, bind
-from cypher_dsl.syntax import OccurrenceFacts
+from cypher_dsl.ast import OccurrenceFacts
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

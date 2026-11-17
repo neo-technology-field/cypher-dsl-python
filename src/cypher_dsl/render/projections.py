@@ -20,22 +20,26 @@ from cypher_dsl.render.rules import RuleBinding, bind
 
 def projection(node: ReturnClause | WithClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a projection whose WITH filter follows its ordering and pagination."""
-    distinct = "DISTINCT " if node.distinct else ""
-    items = ", ".join(child.text for child in children[: len(node.expressions)])
-    text = f"{node.keyword} {distinct}{items}"
+    layout = context.layout
+    head = f"{node.keyword} DISTINCT" if node.distinct else node.keyword
+    items = [child.text for child in children[: len(node.expressions)]]
+    text = layout.listed(head, items)
     index = len(node.expressions)
+    modifiers: list[str] = []
     if node.order_by:
-        ordered = children[index : index + len(node.order_by)]
-        text = f"{text} ORDER BY {', '.join(child.text for child in ordered)}"
+        ordered = [child.text for child in children[index : index + len(node.order_by)]]
+        modifiers.append(layout.tokens("ORDER BY", layout.series(ordered)))
         index += len(node.order_by)
     if node.skip is not None:
-        text = f"{text} SKIP {children[index].text}"
+        modifiers.append(layout.tokens("SKIP", children[index].text))
         index += 1
     if node.limit is not None:
-        text = f"{text} LIMIT {children[index].text}"
+        modifiers.append(layout.tokens("LIMIT", children[index].text))
         index += 1
+    if modifiers:
+        text = layout.packed(text, *modifiers)
     if isinstance(node, WithClause) and node.where is not None:
-        text = f"{text} {children[index].text}"
+        text = layout.owned(text, children[index].text)
     return text
 
 

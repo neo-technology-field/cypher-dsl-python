@@ -1,5 +1,5 @@
 """
-Shared traversal contracts and structural comparison for syntax trees.
+Shared contracts for abstract syntax tree nodes: child order, bound names and structural comparison.
 """
 
 from __future__ import annotations
@@ -53,6 +53,16 @@ class AstNode:
 
     def children(self) -> tuple[AstNode, ...]:
         """Return the child nodes in documented syntax order."""
+        return ()
+
+    def local_names(self) -> tuple[str, ...]:
+        """
+        Return the names this node binds for its own subtree, empty for ordinary nodes.
+
+        Clause and statement bindings live in scope frames. This hook covers bindings
+        an expression introduces inside itself, such as a comprehension variable, so
+        reference checking does not mistake them for references to an outer name.
+        """
         return ()
 
     def accept(self, visitor: _Visitor) -> None:

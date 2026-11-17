@@ -19,6 +19,8 @@ from cypher_dsl.render.capabilities import (
 # rather than passing a lookup against the implementation.
 EXPECTED_FLOORS = {
     Capability.SCOPE_CLAUSES: CapabilityFloor(None, ServerVersion(5, 23)),
+    Capability.OPTIONAL_CALL: CapabilityFloor(None, ServerVersion(5, 24)),
+    Capability.IN_TRANSACTIONS: CapabilityFloor(None, ServerVersion(4, 4)),
     Capability.DYNAMIC_PROPERTY_WRITES: CapabilityFloor(None, ServerVersion(5, 24)),
     Capability.DYNAMIC_LABELS: CapabilityFloor(None, ServerVersion(5, 26)),
     Capability.VECTOR_SEARCH: CapabilityFloor(Language.CYPHER_25, ServerVersion(2026, 1)),
@@ -72,6 +74,14 @@ def test_every_language_floor_is_parseable_at_its_capability_release_floor() -> 
         (Capability.SCOPE_CLAUSES, "5.23", True),
         (Capability.SCOPE_CLAUSES, "5.26", True),
         (Capability.SCOPE_CLAUSES, "2025.01", True),
+        (Capability.OPTIONAL_CALL, "5.23", False),
+        (Capability.OPTIONAL_CALL, "5.24", True),
+        (Capability.OPTIONAL_CALL, "5.26", True),
+        (Capability.OPTIONAL_CALL, "2025.01", True),
+        (Capability.IN_TRANSACTIONS, "4.3", False),
+        (Capability.IN_TRANSACTIONS, "4.4", True),
+        (Capability.IN_TRANSACTIONS, "5.26", True),
+        (Capability.IN_TRANSACTIONS, "2025.01", True),
         (Capability.DYNAMIC_PROPERTY_WRITES, "5.23", False),
         (Capability.DYNAMIC_PROPERTY_WRITES, "5.24", True),
         (Capability.DYNAMIC_PROPERTY_WRITES, "5.26", True),

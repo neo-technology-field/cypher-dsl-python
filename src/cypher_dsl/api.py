@@ -1,5 +1,6 @@
 """Construction functions for the public API."""
 
+from cypher_dsl.clauses.call import call, optional_call
 from cypher_dsl.clauses.match import match, optional_match
 from cypher_dsl.clauses.unwind import unwind
 from cypher_dsl.clauses.write import assign, create, merge, set_labels, update_properties
@@ -16,6 +17,7 @@ __all__ = [
     "assign",
     "asterisk",
     "boolean_operation",
+    "call",
     "condition",
     "count",
     "create",
@@ -30,6 +32,7 @@ __all__ = [
     "merge",
     "name",
     "node",
+    "optional_call",
     "optional_match",
     "param",
     "raw",

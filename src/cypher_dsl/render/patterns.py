@@ -12,8 +12,7 @@ from cypher_dsl.render.expressions import _map_entries
 from cypher_dsl.render.fragments import Fragment
 from cypher_dsl.render.literals import quote_identifier
 from cypher_dsl.render.rules import RuleBinding, bind
-from cypher_dsl.statements.analysis import NodePatternFacts
-from cypher_dsl.statements.scope import DeclarationRole
+from cypher_dsl.statements.frames import DeclarationRole, NodePatternFacts
 
 _DIRECTION_MARKS: Final = {
     RelationshipDirection.OUTGOING: ("-", "->"),
@@ -34,13 +33,13 @@ def node_pattern(node: NodePattern, children: tuple[Fragment, ...], context: Ren
     labels = ":".join(quote_identifier(label.value, escape) for label in node.labels)
     text = f"({variable}:{labels}"
     if children:
-        text = f"{text} {children[0].text}"
+        text = context.layout.tokens(text, children[0].text)
     return f"{text})"
 
 
 def pattern_properties(node: PatternProperties, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a pattern property map in entry order."""
-    return _map_entries(node.entries, children, context.always_escape_names)
+    return _map_entries(node.entries, children, context)
 
 
 def relationship_pattern(node: RelationshipPattern, children: tuple[Fragment, ...], context: RenderContext) -> str:
@@ -57,7 +56,7 @@ def relationship(node: Relationship, children: tuple[Fragment, ...], context: Re
         details = f"{details}:{quote_identifier(node.relationship_type.value, escape)}"
     if node.properties is not None:
         properties_text = children[0].text
-        details = properties_text if not details else f"{details} {properties_text}"
+        details = properties_text if not details else context.layout.tokens(details, properties_text)
     target = children[-1].text
     bracket = "" if not details else f"[{details}]"
     return f"{left_mark}{bracket}{right_mark}{target}"

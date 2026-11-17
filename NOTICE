@@ -33,7 +33,7 @@ Where the code corresponds
 
 Modules that exist only for this implementation include the error types,
 render/bindings.py, render/capabilities.py and the comparison and traversal helpers in
-syntax.py.
+ast.py.
 
 Ported tests
 

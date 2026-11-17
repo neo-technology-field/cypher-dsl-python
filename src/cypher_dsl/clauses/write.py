@@ -25,9 +25,9 @@ from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpres
 from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.values import Literal, Parameter, SymbolicName, Variable, _FrozenMap, validate_name
-from cypher_dsl.patterns.nodes import PatternElement, PatternProperties
+from cypher_dsl.patterns.nodes import PatternElement, PatternProperties, require_explicit_properties
 from cypher_dsl.patterns.relationships import RelationshipDirection, RelationshipPattern
-from cypher_dsl.syntax import AstNode, _require_tuple
+from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.statements.builder import StatementBuilder
@@ -120,23 +120,6 @@ def _require_label_target(target: Expression) -> Variable:
         f"A label update target must be a named pattern or variable, not {type(target).__name__}. "
         "Use the node pattern or name() for the element whose labels change."
     )
-
-
-def _require_explicit_properties(pattern: PatternElement) -> None:
-    """
-    Reject a whole-map value where ``MERGE`` needs explicit identity entries.
-
-    An explicit mapping and a map expression both render ``{key: value}`` entries, so
-    both can define identity. A parameter, variable or other expression stands for a
-    whole map at runtime, which cannot be used as identity without inspecting it first.
-    """
-    for properties in pattern.property_maps():
-        if isinstance(properties, (PatternProperties, MapExpression)):
-            continue
-        raise DslError(
-            "MERGE does not support a whole-map expression as pattern properties. "
-            "Write the identity properties explicitly in the pattern, or use map_()."
-        )
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
@@ -375,7 +358,9 @@ class MergeClause(Clause):
         """
         if not isinstance(self.pattern, PatternElement):
             raise DslError(f"MERGE accepts one pattern element, not {type(self.pattern).__name__}.")
-        _require_explicit_properties(self.pattern)
+        require_explicit_properties(
+            self.pattern, "MERGE", "Write the identity properties explicitly in the pattern, or use map_()."
+        )
         _require_relationship_types(self.pattern, "MERGE")
         _require_tuple(self.actions, "MERGE actions")
         seen: set[str] = set()

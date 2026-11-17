@@ -11,7 +11,7 @@ from cypher_dsl.errors import DslError, UnsupportedFeatureError
 from cypher_dsl.features import Capability
 from cypher_dsl.render.capabilities import ServerVersion
 from cypher_dsl.render.targets import resolve_target
-from cypher_dsl.statements.analysis import SyntaxRequirement
+from cypher_dsl.statements.frames import SyntaxRequirement
 
 
 def test_configuration_requires_a_release() -> None:
@@ -172,11 +172,6 @@ def test_release_and_language_are_included_in_configuration_equality_and_hash() 
         )
         == 3
     )
-
-
-def test_pretty_print_fails_explicitly() -> None:
-    with pytest.raises(UnsupportedFeatureError, match="Pretty printing"):
-        Configuration(server_version="5.26", pretty_print=True)
 
 
 def test_malformed_server_version_fails_at_configuration_construction() -> None:

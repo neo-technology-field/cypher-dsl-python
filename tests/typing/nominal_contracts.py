@@ -14,7 +14,7 @@ unused, and `make typing` would fail.
 """
 
 from cypher_dsl import AstNode, Expression, NamedExpression, name, node
-from cypher_dsl.syntax import _Visitor
+from cypher_dsl.ast import _Visitor
 
 
 class UndeclaredVisitor:

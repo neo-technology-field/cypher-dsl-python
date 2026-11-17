@@ -22,4 +22,5 @@
 
 - A 3.12 floor shortens the matrix but excludes a supported Python release.
 - A 3.10 floor supports a version already past EOL.
-- Supporting 3.11 until October 2027 keeps the syntax floor low and puts one unit job per supported minor in the CI matrix for the whole period.
+- Supporting 3.11 until October 2027 keeps the syntax floor low and puts one unit job per supported minor
+  in the CI matrix for the whole period.

@@ -17,7 +17,7 @@ from cypher_dsl.errors import DslError, EmptyPatternError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpression
 from cypher_dsl.expressions.values import SymbolicName, Variable, validate_name
 from cypher_dsl.patterns.nodes import NodePattern, PatternElement, PatternProperties, coerce_pattern_properties
-from cypher_dsl.syntax import AstNode, _require_tuple
+from cypher_dsl.ast import AstNode, _require_tuple
 
 
 class RelationshipDirection(Enum):

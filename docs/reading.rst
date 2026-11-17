@@ -215,6 +215,8 @@ a ``WITH`` projects the row variable:
 
     UNWIND $rows AS item WITH item WHERE item IS NOT NULL RETURN item
 
+.. _functions:
+
 Call functions
 --------------
 
@@ -276,7 +278,8 @@ their own constructors, and ``count`` takes the explicit ``asterisk()``:
     MATCH (p:Person) RETURN count(*), count(DISTINCT p.email), elementId(p)
 
 ``element_id`` always renders ``elementId(n)``. ``fn("id", ...)`` keeps whatever name the
-caller supplied.
+caller supplied. For a function or operand the DSL does not model, :ref:`raw-expression`
+renders trusted text unchanged.
 
 .. _projection:
 

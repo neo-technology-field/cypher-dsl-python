@@ -52,24 +52,26 @@ def parameter(node: Parameter, children: tuple[Fragment, ...], context: RenderCo
 
 def aliased_expression(node: AliasedExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render an expression followed by its projection alias."""
+    layout = context.layout
     alias = quote_identifier(node.alias_name.value, context.always_escape_names)
-    return f"{children[0].text} AS {alias}"
+    return layout.tokens(children[0].text, "AS", alias)
 
 
 def comparison(node: Comparison, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a comparison or a postfix null test with structural operand grouping."""
+    layout = context.layout
     left = grouped(children[0], node.precedence, close_equal=True)
     if node.right is None:
-        return f"{left} {node.operator}"
+        return layout.tokens(left, node.operator)
     right = grouped(children[1], node.precedence, close_equal=True)
-    return f"{left} {node.operator} {right}"
+    return layout.tokens(left, node.operator, right)
 
 
 def binary_operation(node: BinaryOperation, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render two operands and their arithmetic or logical operator."""
     left = grouped(children[0], node.precedence, close_equal=False)
     right = grouped(children[1], node.precedence, close_equal=True)
-    return f"{left} {node.operator} {right}"
+    return context.layout.tokens(left, node.operator, right)
 
 
 def unary_operation(node: UnaryOperation, children: tuple[Fragment, ...], context: RenderContext) -> str:
@@ -99,25 +101,25 @@ def subscript_expression(node: SubscriptExpression, children: tuple[Fragment, ..
 
 def list_expression(node: ListExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render an ordered list expression."""
-    return "[" + ", ".join(child.text for child in children) + "]"
+    return "[" + context.layout.series(child.text for child in children) + "]"
 
 
 def _map_entries(
     entries: Sequence[tuple[SymbolicName, Expression]],
     children: tuple[Fragment, ...],
-    always_escape_names: bool,
+    context: RenderContext,
 ) -> str:
     """Render entries as a map whose keys are identifiers and whose values are child fragments."""
     pairs = (
-        f"{quote_identifier(key.value, always_escape_names)}: {child.text}"
+        f"{quote_identifier(key.value, context.always_escape_names)}: {child.text}"
         for child, (key, _) in zip(children, entries, strict=True)
     )
-    return "{" + ", ".join(pairs) + "}"
+    return "{" + context.layout.series(pairs) + "}"
 
 
 def map_expression(node: MapExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a map expression in entry order."""
-    return _map_entries(node.entries, children, context.always_escape_names)
+    return _map_entries(node.entries, children, context)
 
 
 def element_id_function(node: ElementId, children: tuple[Fragment, ...], context: RenderContext) -> str:
@@ -128,7 +130,7 @@ def element_id_function(node: ElementId, children: tuple[Fragment, ...], context
 def function_invocation(node: FunctionInvocation, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a function name segment by segment, its arguments and an optional DISTINCT."""
     name = ".".join(quote_function_segment(segment) for segment in node.function_name)
-    arguments = ", ".join(child.text for child in children)
+    arguments = context.layout.series(child.text for child in children)
     distinct = "DISTINCT " if node.distinct else ""
     return f"{name}({distinct}{arguments})"
 
@@ -145,7 +147,7 @@ def raw_expression(node: RawExpression, children: tuple[Fragment, ...], context:
 
 def sort_item(node: SortItem, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a sort key and its explicit direction."""
-    return f"{children[0].text} {node.direction.value}"
+    return context.layout.tokens(children[0].text, node.direction.value)
 
 
 def expression_bindings() -> tuple[RuleBinding, ...]:

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import TypeVar, cast
 
 from cypher_dsl.errors import UnsupportedFeatureError
+from cypher_dsl.registry import TypeRegistry
 from cypher_dsl.render.context import RenderContext
 from cypher_dsl.render.fragments import Fragment
-from cypher_dsl.syntax import AstNode
+from cypher_dsl.ast import AstNode
 
 TNode = TypeVar("TNode", bound=AstNode)
 Compose = Callable[[TNode, tuple[Fragment, ...], RenderContext], str]
@@ -62,7 +62,7 @@ class RenderingRules:
     __slots__ = ("_rules",)
 
     def __init__(self, rules: Mapping[type[AstNode], RenderingRule]) -> None:
-        self._rules: Mapping[type[AstNode], RenderingRule] = MappingProxyType(dict(rules))
+        self._rules = TypeRegistry(rules)
 
     @classmethod
     def from_bindings(cls, bindings: Iterable[RuleBinding]) -> RenderingRules:
@@ -75,11 +75,10 @@ class RenderingRules:
 
     def resolve(self, node: AstNode) -> RenderingRule:
         """Return the exact rule or the nearest registered class in the node's MRO."""
-        for node_type in type(node).__mro__:
-            rule = self._rules.get(node_type)
-            if rule is not None:
-                return rule
-        raise UnsupportedFeatureError(f"Rendering is not implemented for {type(node).__name__}.")
+        rule = self._rules.find(node)
+        if rule is None:
+            raise UnsupportedFeatureError(f"Rendering is not implemented for {type(node).__name__}.")
+        return rule
 
 
 __all__ = ["RenderingRule", "RenderingRules", "RuleBinding", "bind"]

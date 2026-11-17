@@ -20,3 +20,5 @@ docs/_generated/
 /.idea/
 /uv.lock
 
+!AGENTS.md
+

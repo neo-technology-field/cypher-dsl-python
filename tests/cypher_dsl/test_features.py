@@ -14,6 +14,8 @@ def test_language_levels_are_distinct_identities() -> None:
 def test_capability_identities_are_unchanged() -> None:
     assert {member.name for member in Capability} == {
         "SCOPE_CLAUSES",
+        "OPTIONAL_CALL",
+        "IN_TRANSACTIONS",
         "DYNAMIC_LABELS",
         "DYNAMIC_PROPERTY_WRITES",
         "VECTOR_SEARCH",

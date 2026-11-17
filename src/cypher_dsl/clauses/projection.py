@@ -21,7 +21,7 @@ from cypher_dsl.expressions.base import Expression, require_operand
 from cypher_dsl.expressions.functions import Asterisk, RawExpression
 from cypher_dsl.expressions.operators import Condition
 from cypher_dsl.expressions.values import AliasedExpression, Literal, SortItem, Variable
-from cypher_dsl.syntax import AstNode, _require_tuple
+from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.clauses.match import Where

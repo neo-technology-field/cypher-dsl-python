@@ -14,6 +14,7 @@ from typing import TypeAlias
 from cypher_dsl.errors import UnsupportedFeatureError
 from cypher_dsl.render.bindings import BindingCollector
 from cypher_dsl.render.configuration import Configuration
+from cypher_dsl.render.pretty import render_pretty
 from cypher_dsl.render.targets import resolve_target
 from cypher_dsl.render.traversal import RenderingTraversal
 from cypher_dsl.statements.analysis import analyse
@@ -80,6 +81,9 @@ class Renderer:
         """
         Render one statement builder or finalised statement.
 
+        Finalise, analyse in one validating walk, check requirements, collect bindings, then render.
+        Analysis and rendering make two tree walks over the finalised AST.
+
         Args:
             statement: Construction value, finalised statement or union. Statement
                 builders are finalised through ``build`` before rendering.
@@ -97,11 +101,20 @@ class Renderer:
         bindings = BindingCollector()
         for parameter in analysis.parameters:
             bindings.record(parameter.symbol.value, parameter.binding)
-        traversal = RenderingTraversal(self._target.rules, analysis, self._target.always_escape_names)
-        body = traversal.render(finalised)
+        if self._target.pretty_print:
+            body = render_pretty(finalised, analysis, self._target.always_escape_names, self._target.rules)
+        else:
+            traversal = RenderingTraversal(
+                self._target.rules, analysis, self._target.always_escape_names, self._target.layout
+            )
+            body = traversal.render(finalised)
         language_prefix = self._target.language_prefix(analysis.requirements)
+        if language_prefix and self._target.pretty_print:
+            cypher = f"{language_prefix.rstrip()}\n{body}"
+        else:
+            cypher = language_prefix + body
         return Rendered(
-            cypher=language_prefix + body,
+            cypher=cypher,
             parameters=bindings.parameters,
             unbound_parameters=bindings.unbound_parameters,
         )

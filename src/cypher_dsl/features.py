@@ -7,6 +7,8 @@ class Capability(Enum):
     """A syntax family whose availability depends on target and release."""
 
     SCOPE_CLAUSES = "SCOPE_CLAUSES"
+    OPTIONAL_CALL = "OPTIONAL_CALL"
+    IN_TRANSACTIONS = "IN_TRANSACTIONS"
     DYNAMIC_LABELS = "DYNAMIC_LABELS"
     DYNAMIC_PROPERTY_WRITES = "DYNAMIC_PROPERTY_WRITES"
     VECTOR_SEARCH = "VECTOR_SEARCH"

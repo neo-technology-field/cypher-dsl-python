@@ -82,7 +82,15 @@ SUPPORTED_RELEASE_MINIMUM: Final = ServerVersion(5, 26)
 CYPHER_25_MINIMUM = ServerVersion(2025, 6)
 VECTOR_SEARCH_MINIMUM = ServerVersion(2026, 1)
 FULLTEXT_SEARCH_MINIMUM = ServerVersion(2026, 9)
+# The variable scope clause arrived in 5.23:
+# https://neo4j.com/docs/cypher-manual/5/deprecations-additions-removals-compatibility/#cypher-deprecations-additions-removals-5.23
 SCOPE_CLAUSES_MINIMUM = ServerVersion(5, 23)
+# OPTIONAL CALL requires 5.24:
+# https://neo4j.com/docs/cypher-manual/5/subqueries/call-subquery/#optional-subquery-calls
+OPTIONAL_CALL_MINIMUM = ServerVersion(5, 24)
+# Inner transactions for CALL subqueries require 4.4:
+# https://neo4j.com/docs/cypher-manual/4.4/deprecations-additions-removals-compatibility/#cypher-deprecations-additions-removals-4.4
+IN_TRANSACTIONS_MINIMUM = ServerVersion(4, 4)
 # Dynamic labels and types arrived in 5.26:
 # https://neo4j.com/docs/cypher-manual/5/clauses/create/
 DYNAMIC_LABELS_MINIMUM = ServerVersion(5, 26)
@@ -139,6 +147,8 @@ class CapabilityFloor:
 
 _CAPABILITY_FLOORS: Final = {
     Capability.SCOPE_CLAUSES: CapabilityFloor(None, SCOPE_CLAUSES_MINIMUM),
+    Capability.OPTIONAL_CALL: CapabilityFloor(None, OPTIONAL_CALL_MINIMUM),
+    Capability.IN_TRANSACTIONS: CapabilityFloor(None, IN_TRANSACTIONS_MINIMUM),
     Capability.DYNAMIC_PROPERTY_WRITES: CapabilityFloor(None, DYNAMIC_PROPERTY_WRITES_MINIMUM),
     Capability.DYNAMIC_LABELS: CapabilityFloor(None, DYNAMIC_LABELS_MINIMUM),
     Capability.VECTOR_SEARCH: CapabilityFloor(Language.CYPHER_25, VECTOR_SEARCH_MINIMUM),
@@ -164,6 +174,8 @@ __all__ = [
     "DYNAMIC_LABELS_MINIMUM",
     "DYNAMIC_PROPERTY_WRITES_MINIMUM",
     "FULLTEXT_SEARCH_MINIMUM",
+    "IN_TRANSACTIONS_MINIMUM",
+    "OPTIONAL_CALL_MINIMUM",
     "SCOPE_CLAUSES_MINIMUM",
     "SUPPORTED_RELEASE_MINIMUM",
     "VECTOR_SEARCH_MINIMUM",

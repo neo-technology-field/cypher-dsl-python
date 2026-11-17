@@ -8,14 +8,16 @@ one shared node appearing twice gets separate facts.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from cypher_dsl.ast import AstNode, OccurrencePath, _Visitor
 from cypher_dsl.errors import UnsupportedFeatureError
 from cypher_dsl.render.context import RenderContext
 from cypher_dsl.render.fragments import Fragment
+from cypher_dsl.render.layout import COMPACT, Layout
 from cypher_dsl.render.rules import RenderingRules
 from cypher_dsl.statements.analysis import Analysis
-from cypher_dsl.syntax import AstNode, OccurrencePath, _Visitor
 
 
 @dataclass(weakref_slot=True, slots=True)
@@ -31,13 +33,34 @@ class _Frame:
 class RenderingTraversal(_Visitor):
     """Walk one AST and call the rule selected for a node once its children have produced fragments."""
 
-    __slots__ = ("__weakref__", "_always_escape_names", "_analysis", "_frames", "_result", "_rules")
+    __slots__ = (
+        "__weakref__",
+        "_always_escape_names",
+        "_analysis",
+        "_captures",
+        "_frames",
+        "_layout",
+        "_occurrences",
+        "_result",
+        "_rules",
+    )
 
-    def __init__(self, rules: RenderingRules, analysis: Analysis, always_escape_names: bool) -> None:
-        """Store the immutable inputs for one render."""
+    def __init__(
+        self,
+        rules: RenderingRules,
+        analysis: Analysis,
+        always_escape_names: bool,
+        layout: Layout = COMPACT,
+        captures: dict[OccurrencePath, str] | None = None,
+        occurrences: Mapping[OccurrencePath, Layout] | None = None,
+    ) -> None:
+        """Store the immutable inputs and optional collectors for one render."""
         self._rules = rules
         self._analysis = analysis
         self._always_escape_names = always_escape_names
+        self._layout = layout
+        self._captures = captures
+        self._occurrences = occurrences
         self._frames: list[_Frame] = []
         self._result: str | None = None
 
@@ -56,8 +79,11 @@ class RenderingTraversal(_Visitor):
         if not self._frames or self._frames[-1].node is not node:
             raise UnsupportedFeatureError(f"Rendering traversal left {type(node).__name__} out of order.")
         frame = self._frames.pop()
-        context = RenderContext(self._always_escape_names, self._analysis.facts_for(frame.path))
+        layout = self._occurrences.get(frame.path, self._layout) if self._occurrences is not None else self._layout
+        context = RenderContext(self._always_escape_names, self._analysis.facts_for(frame.path), layout)
         text = self._rules.resolve(frame.node).compose(frame.node, tuple(frame.fragments), context)
+        if self._captures is not None:
+            self._captures[frame.path] = text
         if self._frames:
             self._frames[-1].fragments.append(Fragment(frame.node, text))
         else:

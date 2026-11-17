@@ -12,8 +12,9 @@ from cypher_dsl.render.fragments import Fragment
 from cypher_dsl.render.rules import RenderingRules, bind
 from cypher_dsl.render.targets import ResolvedTarget, resolve_target
 from cypher_dsl.render.traversal import RenderingTraversal
-from cypher_dsl.statements.analysis import Analysis, SyntaxRequirement
-from cypher_dsl.syntax import AstNode
+from cypher_dsl.statements.analysis import Analysis
+from cypher_dsl.statements.frames import SyntaxRequirement
+from cypher_dsl.ast import AstNode
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

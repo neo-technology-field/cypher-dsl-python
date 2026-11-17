@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import pytest
 
 from cypher_dsl import AstNode, lit, name, structurally_equal
-from cypher_dsl.syntax import _Visitor
+from cypher_dsl.ast import _Visitor
 
 
 def test_literals_snapshot_nested_input():

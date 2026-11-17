@@ -17,9 +17,9 @@ The classes
      - A grammar or shape rule is violated directly, for example a projection without an
        item, a filter with no clause to own it, or a read that stops at ``MATCH``.
    * - ``UnsupportedFeatureError``
-     - A requested construct is outside the implemented surface: an unimplemented option
-       such as ``pretty_print``, a release or language floor that the declared target does
-       not meet, or a value kind with no rendering rule.
+     - A requested construct is outside the implemented surface: a release or language
+       floor that the declared target does not meet, or a value kind with no rendering
+       rule.
    * - ``InvalidClauseOrderError``
      - Clauses form a sequence Cypher does not accept, such as ``WHERE`` after ``RETURN``
        or a second ``RETURN`` in one statement.
@@ -56,7 +56,7 @@ statement fails before rendering:
 
     WHERE must precede RETURN in a statement.
 
-Target checks and unimplemented options raise when the configuration or the render runs,
+Target checks raise when the configuration or the render runs,
 so an unavailable language or syntax the declared release cannot parse fails there:
 
 .. code-block:: python

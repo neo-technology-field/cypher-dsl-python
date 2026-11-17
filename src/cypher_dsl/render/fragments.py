@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cypher_dsl.syntax import AstNode
+from cypher_dsl.ast import AstNode
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)

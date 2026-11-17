@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING
 
 from cypher_dsl.errors import DslError, EmptyPatternError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpression, coerce_expression, require_operand
+from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.values import SymbolicName, Variable, validate_name
-from cypher_dsl.syntax import AstNode, _require_tuple, structurally_equal
+from cypher_dsl.ast import AstNode, _require_tuple, structurally_equal
 
 if TYPE_CHECKING:
     from cypher_dsl.patterns.relationships import RelationshipPattern
@@ -119,6 +120,28 @@ def coerce_pattern_properties(
     if not isinstance(properties, Mapping):
         raise DslError(f"Pattern properties must be a mapping or an expression, not {type(properties).__name__}.")
     return PatternProperties.from_mapping(properties)
+
+
+def require_explicit_properties(pattern: PatternElement, construct: str, remedy: str) -> None:
+    """
+    Reject a whole-map property expression where a pattern needs explicit entries.
+
+    An explicit mapping and a map expression both render ``{key: value}`` entries, so
+    both are explicit. A parameter, variable or other expression stands for a whole map
+    at runtime, which a read or merge pattern cannot use as entries.
+
+    Args:
+        pattern: Pattern element to check.
+        construct: Clause keyword used in the failure message.
+        remedy: Call-site advice that completes the failure message.
+
+    Raises:
+        DslError: If a property map is a whole-map expression.
+    """
+    for properties in pattern.property_maps():
+        if isinstance(properties, (PatternProperties, MapExpression)):
+            continue
+        raise DslError(f"{construct} does not support a whole-map expression as pattern properties. {remedy}")
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
@@ -350,4 +373,5 @@ __all__ = [
     "PatternProperties",
     "coerce_pattern_properties",
     "node",
+    "require_explicit_properties",
 ]

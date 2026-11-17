@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import docutils.nodes as dn
 import sphinx.addnodes as an
 from pygments.lexers import CypherLexer
-from pygments.token import Name
+from pygments.token import Name, Operator
 from sphinx.highlighting import lexers
 
 if TYPE_CHECKING:
@@ -29,16 +29,21 @@ if TYPE_CHECKING:
 
 class ParameterCypherLexer(CypherLexer):
     """
-    The Cypher lexer with query parameters added.
+    The Cypher lexer with query parameters and the operators Pygments omits.
 
     Pygments rejects ``$name`` and ``$``quoted name`` tokens, and every rendered statement
-    in this documentation carries parameters. The added rule lexes them as variables so
-    highlighting succeeds instead of falling back to relaxed mode.
+    in this documentation carries parameters. Its rule set also has no operator token for
+    ``+ - * / % ^ ~``, so arithmetic and the regex match operator render as error tokens.
+    Both are added here so highlighting succeeds instead of falling back to relaxed mode.
     """
 
     tokens: ClassVar[dict[str, list[tuple[str, Any]]]] = {
         **CypherLexer.tokens,
-        "root": [(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|`[^`]+`)", Name.Variable), *CypherLexer.tokens["root"]],
+        "root": [
+            (r"\$(?:[A-Za-z_][A-Za-z0-9_]*|`[^`]+`)", Name.Variable),
+            (r"[+\-*/%^~]", Operator),
+            *CypherLexer.tokens["root"],
+        ],
     }
 
 

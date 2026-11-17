@@ -11,7 +11,7 @@ from cypher_dsl.render.fragments import Fragment
 from cypher_dsl.render.rules import RenderingRules, bind
 from cypher_dsl.render.traversal import RenderingTraversal
 from cypher_dsl.statements.analysis import Analysis, NoFacts
-from cypher_dsl.syntax import AstNode, OccurrenceFacts, OccurrencePath
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

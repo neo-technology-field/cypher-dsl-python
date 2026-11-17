@@ -20,7 +20,7 @@ from cypher_dsl.render.rules import RuleBinding, bind
 
 def assignment(node: Assignment, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render an assignment target, update operator and value."""
-    return f"{children[0].text} {node.kind.value} {children[1].text}"
+    return context.layout.tokens(children[0].text, node.kind.value, children[1].text)
 
 
 def label_update(node: LabelUpdate, children: tuple[Fragment, ...], context: RenderContext) -> str:
@@ -31,35 +31,36 @@ def label_update(node: LabelUpdate, children: tuple[Fragment, ...], context: Ren
 
 def create_clause(node: CreateClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a CREATE clause with comma-separated patterns."""
-    return f"CREATE {', '.join(child.text for child in children)}"
+    return context.layout.listed("CREATE", [child.text for child in children])
 
 
 def merge_action(node: MergeAction, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render one ON CREATE or ON MATCH action and its assignments."""
-    return f"{node.keyword} SET {', '.join(child.text for child in children)}"
+    return context.layout.listed(f"{node.keyword} SET", [child.text for child in children])
 
 
 def merge_clause(node: MergeClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a MERGE pattern followed by its actions."""
-    actions = " ".join(child.text for child in children[1:])
-    text = f"MERGE {children[0].text}"
-    return text if not actions else f"{text} {actions}"
+    layout = context.layout
+    text = layout.tokens("MERGE", children[0].text)
+    actions = [child.text for child in children[1:]]
+    return text if not actions else layout.owned(text, *actions)
 
 
 def set_clause(node: SetClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a SET clause with comma-separated updates."""
-    return f"SET {', '.join(child.text for child in children)}"
+    return context.layout.listed("SET", [child.text for child in children])
 
 
 def remove_clause(node: RemoveClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a REMOVE clause with comma-separated targets."""
-    return f"REMOVE {', '.join(child.text for child in children)}"
+    return context.layout.listed("REMOVE", [child.text for child in children])
 
 
 def delete_clause(node: DeleteClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render DELETE or DETACH DELETE with comma-separated targets."""
     keyword = "DETACH DELETE" if node.detach else "DELETE"
-    return f"{keyword} {', '.join(child.text for child in children)}"
+    return context.layout.listed(keyword, [child.text for child in children])
 
 
 def update_bindings() -> tuple[RuleBinding, ...]:

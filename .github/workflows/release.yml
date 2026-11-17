@@ -1,0 +1,147 @@
+# Publish a release to PyPI and create the matching GitHub release.
+#
+# The workflow is manual and refuses to run twice for the same version, because a PyPI
+# version cannot be overwritten and a pushed tag is permanent. It runs the same Nox
+# matrix the checks workflow runs before anything is tagged, then builds and smokes the
+# wheel through the ``package`` session. The GitHub release is created last, so a failed
+# upload does not announce a package that does not exist. If publishing fails, fix
+# forward with a new version: the existing tag blocks a re-run by design.
+#
+# The user guide is not rebuilt here. The documentation workflow already publishes it on
+# every push to main, and a release starts from main.
+#
+# Action pins are the ones already verified for the checks and documentation workflows.
+# No new action is introduced, so there is nothing new to resolve:
+#   actions/checkout@v7.0.1        -> 3d3c42e5aac5ba805825da76410c181273ba90b1
+#   actions/setup-python@v7.1.0    -> 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+#   astral-sh/setup-uv@v10.3.3     -> 68559e99cc807c1eb7e9238fd43a15bba460eec2
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "release" to publish the version in pyproject.toml'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover Nox sessions
+    runs-on: ubuntu-latest
+    outputs:
+      jobs: ${{ steps.matrix.outputs.jobs }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install the newest supported Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - name: Derive the job matrix from Nox
+        id: matrix
+        run: |
+          uv run nox -t ci --list --json > "$RUNNER_TEMP/nox-sessions.json"
+          jobs="$(uv run python tools/ci_sessions.py "$RUNNER_TEMP/nox-sessions.json")"
+          echo "jobs=${jobs}" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: ${{ matrix.session }}
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.discover.outputs.jobs) }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install the job's Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+      - name: Run ${{ matrix.session }}
+        run: uv run nox -s "${{ matrix.session }}"
+
+  release:
+    name: Tag and publish
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm the dispatch
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "$CONFIRM" != "release" ]; then
+            echo 'Refusing to publish: the confirm input must be "release".'
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install the newest supported Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+
+      - name: Read the version
+        run: echo "VERSION=$(uv version --short)" >> "$GITHUB_ENV"
+
+      - name: Fail if the tag already exists
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists on origin. Bump the version instead."
+            exit 1
+          fi
+
+      - name: Extract the release notes
+        run: |
+          heading="## [${VERSION}]"
+          if ! grep -qxF "$heading" CHANGELOG.md; then
+            echo "CHANGELOG.md has no '${heading}' line. Add the entry before releasing."
+            exit 1
+          fi
+          awk -v heading="$heading" '$0 == heading { found = 1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "The changelog section for ${VERSION} is empty."
+            exit 1
+          fi
+
+      - name: Build and smoke the package
+        run: uv run nox -s package
+
+      - name: Create and push the tag
+        run: |
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          UV_PUBLISH_USERNAME: __token__
+        # Trusted publishing defaults to automatic, which tries the OIDC route first on
+        # GitHub Actions. This workflow authenticates with a token instead, so the
+        # attempt is disabled rather than left to fail.
+        run: uv publish --trusted-publishing never
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease=""
+          case "$VERSION" in
+            *a[0-9]*|*b[0-9]*|*rc[0-9]*|*dev[0-9]*) prerelease="--prerelease" ;;
+          esac
+          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file "$RUNNER_TEMP/notes.md" $prerelease

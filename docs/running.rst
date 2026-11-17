@@ -27,8 +27,9 @@ per-render state, so it can be stored in a module global and shared between thre
     MATCH (p:Person) RETURN p.display_name
 
 ``render`` accepts a builder, a ``Statement`` or a ``UnionStatement``. A builder is
-checked and completed when it is rendered. See :doc:`targets` for how ``server_version``
-and the language selection are chosen.
+checked and completed when it is rendered. The default configuration renders each
+statement on one line; :ref:`pretty-print` shows the multi-line layout. See
+:doc:`targets` for how ``server_version`` and the language selection are chosen.
 
 Read the render result
 ----------------------

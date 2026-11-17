@@ -29,15 +29,16 @@ class Configuration:
             pinned value always emits it.
         always_escape_names: Quote every identifier, including names that would be
             legal unquoted.
-        pretty_print: Not implemented. Setting it is an explicit failure, not a request
-            that is quietly dropped.
+        pretty_print: Render multi-line text for reading, at a fixed width of 120
+            columns. The default renders one line, which stays cacheable and
+            log-friendly.
         server_target: Parsed form of ``server_version``, derived once at construction
             and excluded from equality because it carries no separate information.
 
     Raises:
-        UnsupportedFeatureError: If ``server_version`` is not a string, pretty printing
-            is requested before it exists, the declared release is below 5.26, or the
-            selected language is not parseable on the declared release.
+        UnsupportedFeatureError: If ``server_version`` is not a string, the declared
+            release is below 5.26, or the selected language is not parseable on the
+            declared release.
         DslError: If ``server_version`` cannot be parsed.
     """
 
@@ -49,11 +50,6 @@ class Configuration:
 
     def __post_init__(self) -> None:
         """Validate the options that cannot be honoured or parsed."""
-        if self.pretty_print:
-            raise UnsupportedFeatureError(
-                """Pretty printing is not implemented.
-Use pretty_print=False and format the compact output outside the library."""
-            )
         if not isinstance(self.server_version, str):
             raise UnsupportedFeatureError(
                 """server_version is required.

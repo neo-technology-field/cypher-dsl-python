@@ -96,14 +96,14 @@ database_default = Configuration(server_version="2026.10", language=Language.NON
 
 The library never probes a server. The declared release is the single source of truth for capability checks.
 See [Choose a target](docs/targets.rst) for the floor table and sources.
-`pretty_print=True` raises `UnsupportedFeatureError` rather than being ignored.
+The `pretty_print` option renders multi-line text for reading; the default renders one line.
 
 ## What is not available
 
 - No OGM, driver connection, transaction or schema installation.
-- No `CALL` subqueries, `SEARCH`, path selectors, quantified path patterns or catalogue
-  analysis.
-- No pretty printing and no parser.
+- No `CALL` procedures (`CALL db.labels()`, `YIELD`), `SEARCH`, path selectors, quantified
+  path patterns or catalogue analysis.
+- No Cypher parser. The input is Python construction, not query text.
 - No automatic parameter binding.
 - No inline bytes literal.
 - No complete semantic validator. Clause order, known references and bindings are checked.

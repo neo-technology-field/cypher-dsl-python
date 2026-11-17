@@ -6,7 +6,7 @@ A clause is a syntax node with a fixed position in a statement.
 
 from __future__ import annotations
 
-from cypher_dsl.syntax import AstNode
+from cypher_dsl.ast import AstNode
 
 
 class Clause(AstNode):

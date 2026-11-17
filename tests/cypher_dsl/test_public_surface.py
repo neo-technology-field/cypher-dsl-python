@@ -76,6 +76,13 @@ RENDERS: dict[str, tuple[object, str]] = {
         match(PERSON).where(boolean_operation("AND", PERSON["age"] > 30, PERSON["years"] > 10)).returning(PERSON),
         "MATCH (p:Person) WHERE p.age > 30 AND p.years > 10 RETURN p",
     ),
+    "call": (
+        match(PERSON)
+        .call(match(MOVIE).returning(MOVIE["title"].alias("title")), imports=("p",), in_transactions=5_000)
+        .returning(name("title")),
+        "MATCH (p:Person) CALL (p) { MATCH (m:Movie) RETURN m.title AS title } IN TRANSACTIONS OF 5000 ROWS"
+        " RETURN title",
+    ),
     "condition": (
         match(PERSON).where(condition(PERSON["uid"] == "p1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p",
@@ -107,6 +114,13 @@ RENDERS: dict[str, tuple[object, str]] = {
     "node": (
         match(node("Person", name="p", properties={"uid": "p1"})).returning("p"),
         "MATCH (p:Person {uid: 'p1'}) RETURN p",
+    ),
+    "optional_call": (
+        match(PERSON)
+        .optional_call(match(MOVIE).returning(MOVIE["title"].alias("title")), imports=("p",), in_transactions=5_000)
+        .returning(PERSON["uid"], name("title")),
+        "MATCH (p:Person) OPTIONAL CALL (p) { MATCH (m:Movie) RETURN m.title AS title } IN TRANSACTIONS OF 5000"
+        " ROWS RETURN p.uid, title",
     ),
     "optional_match": (optional_match(PERSON).returning(PERSON["uid"]), "OPTIONAL MATCH (p:Person) RETURN p.uid"),
     "param": (returning(param("uid", "p1")), "RETURN $uid"),
@@ -152,6 +166,10 @@ EXTRA_OBJECTS = (
     match(PERSON).returning(PERSON).build(),
     match(PERSON).remove(PERSON["uid"]),
     match(PERSON).delete(PERSON),
+    match(PERSON)
+    .call(match(MOVIE).returning(MOVIE["title"].alias("title")), imports=("p",))
+    .returning(name("title"))
+    .build(),
     PERSON.relationship_to(MOVIE, "ACTED_IN", name="acted"),
     name("total"),
     cypher_dsl.SymbolicName("Person"),

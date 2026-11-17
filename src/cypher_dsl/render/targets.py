@@ -14,9 +14,10 @@ from cypher_dsl.render.capabilities import (
     validate_language,
 )
 from cypher_dsl.render.configuration import Configuration
+from cypher_dsl.render.layout import COMPACT, Layout
 from cypher_dsl.render.rules import RenderingRules
 from cypher_dsl.render.statements import shared_bindings
-from cypher_dsl.statements.analysis import SyntaxRequirement
+from cypher_dsl.statements.frames import SyntaxRequirement
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)
@@ -28,6 +29,8 @@ class ResolvedTarget:
     language: Language
     always_escape_names: bool
     rules: RenderingRules
+    layout: Layout = COMPACT
+    pretty_print: bool = False
 
     def effective_language(self, requirements: tuple[SyntaxRequirement, ...]) -> Language | None:
         """Return the language the text names, or ``None`` when it emits no prefix."""
@@ -83,6 +86,8 @@ def resolve_target(configuration: Configuration) -> ResolvedTarget:
         language=configuration.language,
         always_escape_names=configuration.always_escape_names,
         rules=_RULES,
+        layout=COMPACT,
+        pretty_print=configuration.pretty_print,
     )
 
 

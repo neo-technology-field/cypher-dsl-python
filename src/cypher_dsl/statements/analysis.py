@@ -7,42 +7,22 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from cypher_dsl.clauses.base import Clause
-from cypher_dsl.clauses.match import MatchClause
-from cypher_dsl.clauses.write import Assignment, CreateClause, MergeClause, RemoveClause
 from cypher_dsl.errors import DslError
-from cypher_dsl.expressions.properties import SubscriptExpression
 from cypher_dsl.expressions.values import Parameter
-from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import NodePattern
 from cypher_dsl.statements.composition import Statement, UnionStatement
-from cypher_dsl.statements.scope import (
+from cypher_dsl.statements.frames import (
     DeclarationRole,
+    NodePatternFacts,
+    NoFacts,
+    ScopeFrame,
+    SyntaxRequirement,
     WriteDeclaration,
-    _Scope,
-    _scope_after_clause,
-    classify_write_declarations,
 )
-from cypher_dsl.syntax import AstNode, OccurrenceFacts, OccurrencePath, _Visitor
-
-
-@dataclass(frozen=True, weakref_slot=True, slots=True)
-class NoFacts(OccurrenceFacts):
-    """Facts for an occurrence that needs no additional semantic information."""
-
-
-@dataclass(frozen=True, weakref_slot=True, slots=True)
-class NodePatternFacts(OccurrenceFacts):
-    """Declaration role for one node pattern occurrence."""
-
-    role: DeclarationRole
-
-
-@dataclass(frozen=True, weakref_slot=True, slots=True)
-class SyntaxRequirement:
-    """A capability required by one AST occurrence."""
-
-    capability: Capability
-    path: OccurrencePath
+from cypher_dsl.statements.rules import PatternState, SemanticRules, semantic_rules
+from cypher_dsl.statements.rules.base import AnalysisSink
+from cypher_dsl.statements.rules.flow import union_columns_check
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath, _Visitor
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)
@@ -61,41 +41,41 @@ class Analysis:
         return self.facts.get(path, NoFacts())
 
 
-@dataclass(weakref_slot=True, slots=True)
-class _ClauseFrame:
-    """A clause being visited and its cached write declarations."""
-
-    clause: Clause
-    declarations: tuple[WriteDeclaration, ...] | None = None
-    # Ordered consumption distinguishes roles when one object occupies several pattern positions.
-    next_declaration: int = 0
-
-
-class _AnalysisVisitor(_Visitor):
-    """Derive occurrence products while keeping statement scopes and occurrence paths separate."""
+class _SemanticVisitor(_Visitor):
+    """Validate constructs, advance scope frames and derive occurrence products in one walk."""
 
     __slots__ = (
         "__weakref__",
+        "_body_depth_contributions",
+        "_body_validation_depth",
         "_child_indices",
-        "_clause_stack",
+        "_clause_states",
+        "_clauses",
         "_facts",
+        "_frames",
+        "_nodes",
         "_parameters",
         "_path",
         "_requirements",
-        "_scopes",
+        "_rules",
     )
 
     def __init__(self) -> None:
+        self._rules: SemanticRules = semantic_rules()
+        self._body_depth_contributions: list[int] = []
+        self._body_validation_depth = 0
+        self._frames: list[ScopeFrame] = [ScopeFrame((), certified=True)]
+        self._nodes: list[AstNode] = []
+        self._clauses: list[Clause] = []
+        self._clause_states: list[PatternState] = []
         self._facts: dict[OccurrencePath, OccurrenceFacts] = {}
-        self._parameters: list[Parameter] = []
         self._requirements: list[SyntaxRequirement] = []
+        self._parameters: list[Parameter] = []
         self._path: list[OccurrencePath] = []
         self._child_indices: list[int] = []
-        self._scopes: list[_Scope] = [_Scope(())]
-        self._clause_stack: list[_ClauseFrame] = []
 
     def enter(self, node: AstNode) -> None:
-        """Push the occurrence path and any scope or clause state for a node."""
+        """Assign the occurrence path, seed nested statements and dispatch to rules."""
         if self._path:
             child_index = self._child_indices[-1]
             self._child_indices[-1] += 1
@@ -104,31 +84,49 @@ class _AnalysisVisitor(_Visitor):
             self._path.append(())
         self._child_indices.append(0)
 
-        if isinstance(node, Statement):
-            self._scopes.append(_Scope(()))
+        if isinstance(node, (Statement, UnionStatement)):
+            parent = self._nodes[-1] if self._nodes else None
+            contribution = 0
+            if parent is None:
+                seed = ScopeFrame((), certified=True)
+            else:
+                parent_rule = self._rules.resolve(parent)
+                seed = parent_rule.enter_body(self._frames[-1], parent)
+                if parent_rule.validates_body:
+                    contribution = 1
+            self._body_depth_contributions.append(contribution)
+            self._body_validation_depth += contribution
+            if isinstance(node, UnionStatement):
+                union_columns_check(node.parts, seed)
+            self._frames.append(seed)
+        rule = self._rules.resolve(node) if isinstance(node, Clause) else self._rules.find(node)
+        if rule is not None:
+            if not isinstance(node, Clause) or self._body_validation_depth == 0:
+                rule.validate(node, self._frames[-1])
+            rule.record(node, self._frames[-1], AnalysisSink(self._facts, self._requirements, self._path[-1]))
         if isinstance(node, Clause):
-            self._clause_stack.append(_ClauseFrame(node))
-        if isinstance(node, Assignment) and isinstance(node.target, SubscriptExpression):
-            self._requirements.append(SyntaxRequirement(Capability.DYNAMIC_PROPERTY_WRITES, (*self._path[-1], 0)))
-        if isinstance(node, RemoveClause):
-            for index, target in enumerate(node.targets):
-                if isinstance(target, SubscriptExpression):
-                    self._requirements.append(
-                        SyntaxRequirement(Capability.DYNAMIC_PROPERTY_WRITES, (*self._path[-1], index))
-                    )
+            self._clauses.append(node)
+            self._clause_states.append(PatternState())
+        self._nodes.append(node)
 
     def leave(self, node: AstNode) -> None:
-        """Record the current occurrence and restore the surrounding traversal state."""
+        """Record pattern facts, advance the frame and restore traversal state."""
         path = self._path[-1]
-        if isinstance(node, NodePattern):
-            self._record_node_pattern(node, path)
+        if isinstance(node, NodePattern) and self._clauses:
+            clause = self._clauses[-1]
+            role = self._rules.resolve(clause).pattern_role(clause, node, self._frames[-1], self._clause_states[-1])
+            if role is not None:
+                self._facts[path] = NodePatternFacts(role)
         if isinstance(node, Parameter):
             self._parameters.append(node)
         if isinstance(node, Clause):
-            clause = self._clause_stack.pop().clause
-            self._scopes[-1] = _scope_after_clause(self._scopes[-1], clause)
-        if isinstance(node, Statement):
-            self._scopes.pop()
+            self._clauses.pop()
+            self._clause_states.pop()
+            self._frames[-1] = self._rules.resolve(node).bindings(self._frames[-1], node)
+        if isinstance(node, (Statement, UnionStatement)):
+            self._frames.pop()
+            self._body_validation_depth -= self._body_depth_contributions.pop()
+        self._nodes.pop()
         self._child_indices.pop()
         self._path.pop()
 
@@ -136,33 +134,22 @@ class _AnalysisVisitor(_Visitor):
         """Return independent immutable products for the visited AST."""
         return Analysis(dict(self._facts), tuple(self._requirements), tuple(self._parameters))
 
-    def _record_node_pattern(self, node: NodePattern, path: OccurrencePath) -> None:
-        clause = self._clause_stack[-1].clause
-        if isinstance(clause, MatchClause):
-            self._facts[path] = NodePatternFacts(DeclarationRole.DECLARE)
-            return
-        if not isinstance(clause, (CreateClause, MergeClause)):
-            return
-        if node.variable is None:
-            self._facts[path] = NodePatternFacts(DeclarationRole.DECLARE)
-            return
-
-        frame = self._clause_stack[-1]
-        if frame.declarations is None:
-            patterns = (clause.pattern,) if isinstance(clause, MergeClause) else clause.patterns
-            keyword = "MERGE" if isinstance(clause, MergeClause) else "CREATE"
-            frame.declarations = classify_write_declarations(self._scopes[-1], patterns, keyword)
-        if frame.next_declaration < len(frame.declarations):
-            declaration = frame.declarations[frame.next_declaration]
-            if declaration.node is node:
-                frame.next_declaration += 1
-                self._facts[path] = NodePatternFacts(declaration.role)
-
 
 def analyse(statement: Statement | UnionStatement) -> Analysis:
-    """Derive occurrence facts, requirements and parameter occurrences for one AST."""
+    """Validate one finalised AST and derive its occurrence products in a single walk."""
     if not isinstance(statement, (Statement, UnionStatement)):
         raise DslError(f"Analysis expects a finalised statement or union, not {type(statement).__name__}.")
-    visitor = _AnalysisVisitor()
+    visitor = _SemanticVisitor()
     statement.accept(visitor)
     return visitor.result()
+
+
+__all__ = [
+    "Analysis",
+    "DeclarationRole",
+    "NoFacts",
+    "NodePatternFacts",
+    "SyntaxRequirement",
+    "WriteDeclaration",
+    "analyse",
+]

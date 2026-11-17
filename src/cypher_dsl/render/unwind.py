@@ -12,7 +12,7 @@ from cypher_dsl.render.rules import RuleBinding, bind
 def unwind_clause(node: UnwindClause, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render an UNWIND source and its quoted variable declaration."""
     alias = quote_identifier(node.variable.symbol.value, context.always_escape_names)
-    return f"UNWIND {children[0].text} AS {alias}"
+    return context.layout.tokens("UNWIND", children[0].text, "AS", alias)
 
 
 def unwind_bindings() -> tuple[RuleBinding, ...]:

@@ -10,7 +10,7 @@ from cypher_dsl.render.rules import RuleBinding, bind
 
 def where(node: Where, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a filter attached to its owning clause."""
-    return f"WHERE {children[0].text}"
+    return context.layout.tokens("WHERE", children[0].text)
 
 
 def filter_bindings() -> tuple[RuleBinding, ...]:

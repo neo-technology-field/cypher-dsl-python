@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "cypher-dsl"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "CPython DSl to constuct Cypher queries."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,7 +29,7 @@ audit = [{include-group = "tools"}, "neo4j>=6.1,<7"]
 
 [tool.uv.build-backend]
 module-name = "cypher_dsl"
-source-include = ["tests/**", "docs/**", "tools/**", "noxfile.py", "Makefile", "uv.lock"]
+source-include = ["tests/**", "docs/**", "tools/**", "noxfile.py", "Makefile", "uv.lock", "CHANGELOG.md"]
 source-exclude = ["docs/_build/**", "docs/_generated/**", ".cache/**"]
 
 [tool.pytest.ini_options]

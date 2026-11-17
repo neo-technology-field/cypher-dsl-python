@@ -37,57 +37,6 @@ for another statement. Selecting a language never bypasses a release floor.
 
     MATCH (p:Person) RETURN p
 
-Which syntax needs which release
---------------------------------
-
-Each row states the oldest Neo4j release, and the language, that a syntax family needs. A
-floor below the 5.26 minimum holds for every release this library supports.
-
-.. list-table::
-   :header-rows: 1
-
-   * - Capability
-     - Minimum language
-     - Minimum Neo4j release
-   * - ``SCOPE_CLAUSES``
-     - none
-     - 5.23
-   * - ``DYNAMIC_PROPERTY_WRITES``
-     - none
-     - 5.24
-   * - ``DYNAMIC_LABELS``
-     - none
-     - 5.26
-   * - ``VECTOR_SEARCH``
-     - Cypher 25
-     - 2026.01
-   * - ``FULLTEXT_SEARCH``
-     - Cypher 25
-     - 2026.09
-
-``none`` means the syntax adds no language requirement, and a pinned prefix is not
-suppressed. Of these families, only dynamic property writes can be built in this release.
-``CALL`` subqueries, dynamic labels, dynamic relationship types and ``SEARCH`` have no
-builder yet; their rows state the release that will accept them when one exists.
-
-``SET p[$key] = $value`` and ``REMOVE p[$key]`` need Neo4j 5.24, below the supported
-minimum, so every release this library supports accepts them. The same syntax appears in
-assignments in ``ON CREATE`` and ``ON MATCH`` actions. Dynamic subscript reads, including
-reads on the right of a static assignment, are not subject to this write-only restriction.
-
-The ``DYNAMIC_LABELS`` floor of 5.26 groups several forms under one date. The forms
-arrived in different releases:
-
-- Dynamic node-pattern labels and relationship types arrived in 5.26, as documented in the
-  `CREATE manual <https://neo4j.com/docs/cypher-manual/5/clauses/create/>`_ and
-  `MATCH manual <https://neo4j.com/docs/cypher-manual/5/clauses/match/>`_.
-- Dynamic ``SET`` and ``REMOVE`` label writes arrived in 5.24, as documented in the
-  `SET manual <https://neo4j.com/docs/cypher-manual/5/clauses/set/>`_ and
-  `REMOVE manual <https://neo4j.com/docs/cypher-manual/5/clauses/remove/>`_.
-
-Later dynamic-label expression forms are separate syntax with their own dates. The
-grouped floor does not add a builder in this release.
-
 Pin the language when the text must name it
 -------------------------------------------
 
@@ -188,22 +137,37 @@ identifier. The default quotes only names that need it, which keeps output close
 hand-written Cypher. Forced escaping produces valid but noisy text, and upstream fixtures
 that use it expect the extra backticks.
 
-Pretty printing is not implemented
-----------------------------------
+.. _pretty-print:
 
-``pretty_print=True`` raises ``UnsupportedFeatureError``. Accepting the option and
-rendering compact output would misrepresent what the caller asked for.
+Render statements for reading
+-----------------------------
+
+``Configuration(pretty_print=True)`` renders a statement as multi-line text for a person
+to read, at a fixed width of 120 columns. The default renders one line, which stays
+cacheable and log-friendly.
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration
-    from cypher_dsl.errors import UnsupportedFeatureError
+    from cypher_dsl import Configuration, Renderer, desc, match, node, param
 
-    try:
-        Configuration(server_version="5.26", pretty_print=True)
-    except UnsupportedFeatureError as error:
-        print(type(error).__name__)
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(
+            (person["rating"] > param("min_rating"))
+            & (person["email"] == param("email"))
+        )
+        .returning(person["display_name"], person["rating"])
+        .order_by(desc(person["rating"]))
+        .skip(param("offset"))
+        .limit(param("limit"))
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
 
 .. code-block:: text
 
-    UnsupportedFeatureError
+    MATCH (p:Person)
+      WHERE p.rating > $min_rating AND p.email = $email
+    RETURN p.display_name, p.rating
+      ORDER BY p.rating DESC SKIP $offset LIMIT $limit

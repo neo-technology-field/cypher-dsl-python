@@ -1,7 +1,26 @@
-from cypher_dsl import assign, asterisk, create, match, merge, name, node, param, raw, returning, union
+import pytest
+
+from cypher_dsl import (
+    assign,
+    asterisk,
+    call,
+    create,
+    lit,
+    match,
+    merge,
+    name,
+    node,
+    optional_call,
+    param,
+    raw,
+    returning,
+    union,
+    unwind,
+)
+from cypher_dsl.errors import DslError
 from cypher_dsl.features import Capability
 from cypher_dsl.statements.analysis import NodePatternFacts, analyse
-from cypher_dsl.statements.scope import DeclarationRole
+from cypher_dsl.statements.frames import DeclarationRole
 
 
 def test_same_node_pattern_object_gets_facts_by_occurrence_path() -> None:
@@ -137,3 +156,43 @@ def test_union_branches_have_isolated_scope_facts() -> None:
     analysis = analyse(union(left, right))
     roles = [facts.role for facts in analysis.facts.values() if isinstance(facts, NodePatternFacts)]
     assert roles == [DeclarationRole.DECLARE, DeclarationRole.DECLARE]
+
+
+def test_reused_call_body_has_scope_sensitive_facts_at_each_occurrence() -> None:
+    person = node("Person", name="p")
+    body = create(person.relationship_to(node("Clone", name="clone"), "COPIED_AS")).build()
+    statement = match(person).call(body, imports=("p",)).call(body).build()
+    analysis = analyse(statement)
+
+    assert analysis.facts_for((0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((1, 0, 0, 0, 0)) == NodePatternFacts(DeclarationRole.REFERENCE)
+    assert analysis.facts_for((1, 0, 0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 0, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+
+
+def test_nested_union_calls_record_requirements_at_each_call_occurrence() -> None:
+    branch = (
+        optional_call(create(node("Clone", properties={"uid": param("uid", 10)})).build())
+        .returning(lit(1).alias("one"))
+        .build()
+    )
+    statement = call(union(branch, branch), in_transactions=param("outerRows", 100)).returning(name("one")).build()
+    analysis = analyse(statement)
+    assert [(requirement.capability, requirement.path) for requirement in analysis.requirements] == [
+        (Capability.SCOPE_CLAUSES, (0,)),
+        (Capability.IN_TRANSACTIONS, (0,)),
+        (Capability.SCOPE_CLAUSES, (0, 0, 0, 0)),
+        (Capability.OPTIONAL_CALL, (0, 0, 0, 0)),
+        (Capability.SCOPE_CLAUSES, (0, 0, 1, 0)),
+        (Capability.OPTIONAL_CALL, (0, 0, 1, 0)),
+    ]
+    assert [parameter.symbol.value for parameter in analysis.parameters] == ["uid", "uid", "outerRows"]
+
+
+def test_root_wildcard_scope_does_not_defer_a_known_scalar_write_endpoint() -> None:
+    person = node("Person", name="p")
+    body = create(person.relationship_to(node("Clone"), "COPIED_AS")).build()
+    statement = unwind([1], name("p")).with_(asterisk()).call(body, import_all=True).build()
+    with pytest.raises(DslError, match="conflicting declaration"):
+        analyse(statement)

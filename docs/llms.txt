@@ -9,11 +9,12 @@
 - [Read and filter data](reading.html): optional matches, conditions, functions, projections, ordering and pagination.
 - [Create, merge, update and delete](writing.html): identity merges, SET forms, REMOVE, DELETE and dynamic property names.
 - [Compose query parts and unions](composing.html): WITH as a scope boundary, per-part ordering, UNION and reusing statements.
+- [Call subqueries](subqueries.html): CALL and OPTIONAL CALL, imported variables, batch writes with IN TRANSACTIONS, UNION bodies.
 
 ## Reference
 
 - [Parameters and values](parameters.html): bound and unbound parameters, `lit()`, escaping, snapshotted containers.
-- [Choose a target](targets.html): declared releases, language selection, capability floors and name escaping.
+- [Choose a target](targets.html): declared releases, language selection, capability floors, name escaping and multi-line rendering.
 - [Render and run the query](running.html): renderer lifecycle, render results, driver handoff, logging, testing application queries.
 - [Which errors the library raises](errors.html): the DslError family and when each class is raised.
 - [API reference](api.html): every public class and function.

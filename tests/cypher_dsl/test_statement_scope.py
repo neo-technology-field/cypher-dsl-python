@@ -11,7 +11,8 @@ import pytest
 
 from cypher_dsl import match, merge, node
 from cypher_dsl.errors import DslError
-from cypher_dsl.statements.scope import DeclarationRole, _Scope, classify_write_declarations
+from cypher_dsl.statements.frames import DeclarationRole, ScopeFrame
+from cypher_dsl.statements.rules.writes import classify_write_declarations
 
 
 def test_create_endpoint_reference_is_classified_after_a_match() -> None:
@@ -20,7 +21,7 @@ def test_create_endpoint_reference_is_classified_after_a_match() -> None:
     query = match(person, movie).create(person.relationship_to(movie, "ACTED_IN"))
     statement = query.build()
     create_clause = statement.clauses[-1]
-    scope = _Scope((), False, (("p", person), ("m", movie)))
+    scope = ScopeFrame(bindings=(("p", person), ("m", movie)))
     declarations = classify_write_declarations(scope, create_clause.patterns, "CREATE")
     roles = {
         declaration.node.variable.value: declaration.role for declaration in declarations if declaration.node.variable

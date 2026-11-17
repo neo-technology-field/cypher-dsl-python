@@ -13,6 +13,7 @@ from cypher_dsl import (
     PatternElement,
     assign,
     asterisk,
+    call,
     condition,
     count,
     create,
@@ -45,8 +46,8 @@ from cypher_dsl.render.statements import shared_bindings, statement_bindings
 from cypher_dsl.render.unwind import unwind_bindings
 from cypher_dsl.render.updates import update_bindings
 from cypher_dsl.statements.analysis import Analysis, NodePatternFacts, NoFacts
-from cypher_dsl.statements.scope import DeclarationRole
-from cypher_dsl.syntax import AstNode, OccurrenceFacts, OccurrencePath
+from cypher_dsl.statements.frames import DeclarationRole
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 
 
 def render(root: AstNode, rules: RenderingRules, facts: dict[OccurrencePath, OccurrenceFacts] | None = None) -> str:
@@ -317,6 +318,7 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         .returning(person)
         .build(),
         unwind(param("rows"), name("row")).returning(name("row")).build(),
+        call(returning(lit(1).alias("x"))).returning(name("x")).build(),
         create(relationship).build(),
         merge(person).on_create(assign(person["created"], True)).on_match(assign(person["seen"], True)).build(),
         match(person)
