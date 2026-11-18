@@ -112,6 +112,14 @@ These rules come from repeated corrections, not taste.
   what the library actually renders. A page describing behaviour the library no longer has
   is a defect, not a follow-up. `docs/llms.txt` is hand-written: update it when a page is
   added, removed or changes purpose.
+- `docs/support.rst` is the public inventory of what is covered. A change that implements a
+  cheat-sheet feature, adds a gap, or reclassifies one between Not yet and Not planned
+  updates that page in the same change. Its Python examples are executed by
+  `tests/cypher_dsl/test_support_page.py`, so a new supported entry needs a `python` block
+  and the output block beneath it; the output may be wrapped for reading, because line
+  breaks are not compared. The Logseq `Project/Cypher-DSL` Open and Not implementing
+  lists mirror the page; a change that touches one touches both, and the Logseq lists are
+  written when the user asks.
 - Give every concept one anchor, `.. _name:`, on the page that explains it. Explain it in
   prose before the first example on that page uses it. Later uses link to the anchor rather
   than repeat the explanation.

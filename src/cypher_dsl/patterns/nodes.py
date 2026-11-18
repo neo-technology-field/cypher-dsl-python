@@ -14,10 +14,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cypher_dsl.ast import AstNode, _require_tuple, structurally_equal
-from cypher_dsl.errors import DslError, EmptyPatternError
+from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpression, coerce_expression, require_operand
 from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.values import SymbolicName, Variable, validate_name
+from cypher_dsl.patterns.labels import ColonConjunction, LabelExpression, LabelName
 
 if TYPE_CHECKING:
     from cypher_dsl.patterns.relationships import RelationshipPattern
@@ -144,43 +145,68 @@ def require_explicit_properties(pattern: PatternElement, construct: str, remedy:
         raise DslError(f"{construct} does not support a whole-map expression as pattern properties. {remedy}")
 
 
+def _reject_nested_colon_list(expression: LabelExpression) -> None:
+    """
+    Reject a colon list anywhere below a node pattern's whole label expression.
+
+    A colon list joins plain labels as ``with_labels`` writes them, and no grammar production
+    accepts it as an operand of ``&``, ``|`` or ``!``, so it is legal only as the whole label
+    expression. Those operators build the predicate form, whose leaves are label names.
+
+    Args:
+        expression: Label expression to inspect, including every nested term.
+
+    Raises:
+        DslError: If a term below the root is a ColonConjunction.
+    """
+    for child in expression.children():
+        if isinstance(child, ColonConjunction):
+            raise DslError("A colon list is the whole label expression. Write label('A') & label('B') instead.")
+        if isinstance(child, LabelExpression):
+            _reject_nested_colon_list(child)
+
+
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
 class NodePattern(PatternElement, NamedExpression):
     """
-    A node pattern with at least one label and an optional variable.
+    A node pattern with one label expression and an optional variable.
 
     The variable is the pattern's identity. It is not a ``name`` property: property maps
     use a separate argument, so ``node("Person", name="p")`` produces no property at all.
+    A colon list is legal only as the whole label expression; combining labels needs the
+    ``&``, ``|`` and ``~`` operators.
 
     Attributes:
-        labels: Labels in insertion order, primary first.
+        label_expression: Labels or label predicate the pattern matches.
         variable: Variable the pattern binds, or ``None`` when it is anonymous.
         properties: Explicit property map, whole-map expression, or ``None``.
     """
 
-    labels: tuple[SymbolicName, ...]
+    label_expression: LabelExpression
     variable: SymbolicName | None = None
     properties: PatternProperties | Expression | None = None
 
     def __post_init__(self) -> None:
         """
-        Reject an unlabelled node or a name that cannot be an identifier.
+        Reject a label expression a node cannot carry or a name that cannot be an identifier.
 
         Raises:
-            EmptyPatternError: If no label is present.
-            InvalidIdentifierError: If a label or the variable fails name validation.
+            DslError: If the label expression is not a LabelExpression, or a colon list
+                appears below the whole expression.
+            InvalidIdentifierError: If the variable fails name validation.
         """
-        _require_tuple(self.labels, "Node labels")
-        if not self.labels:
-            raise EmptyPatternError("A node pattern needs at least one label.")
-        for label in self.labels:
-            validate_name(label.value)
+        if not isinstance(self.label_expression, LabelExpression):
+            raise DslError(
+                f"A node pattern's labels must be a LabelExpression, not {type(self.label_expression).__name__}."
+            )
+        _reject_nested_colon_list(self.label_expression)
         if self.variable is not None:
             validate_name(self.variable.value)
 
     def children(self) -> tuple[AstNode, ...]:
-        """Expose the property map when the pattern has one."""
-        return () if self.properties is None else (self.properties,)
+        """Expose the label expression and the property map in rendered order."""
+        children: tuple[AstNode, ...] = (self.label_expression,)
+        return children if self.properties is None else (*children, self.properties)
 
     def nodes(self) -> tuple[NodePattern, ...]:
         """Return this node as the only node pattern."""
@@ -224,7 +250,7 @@ class NodePattern(PatternElement, NamedExpression):
 
     def with_labels(self, *labels: str) -> NodePattern:
         """
-        Return a copy with additional labels.
+        Return a copy with additional plain labels.
 
         The original pattern is not changed, so two statements can share a prefix pattern
         and extend it differently.
@@ -233,26 +259,34 @@ class NodePattern(PatternElement, NamedExpression):
             labels: Additional labels. Duplicates and labels already present are ignored.
 
         Returns:
-            A new node pattern with unique labels in insertion order.
+            A new node pattern with unique plain labels in insertion order.
 
         Raises:
-            DslError: If no label is supplied.
+            DslError: If no label is supplied, or the pattern's labels are already a label
+                expression, which ``with_labels`` cannot extend.
             InvalidIdentifierError: If a label fails name validation.
         """
         if not labels:
             raise DslError("with_labels requires at least one label.")
-        merged = list(self.labels)
+        existing = self.label_expression
+        if isinstance(existing, LabelName):
+            names = [existing.name.value]
+        elif isinstance(existing, ColonConjunction):
+            names = [term.name.value for term in existing.terms]
+        else:
+            raise DslError("with_labels extends plain labels. Combine a label expression with & or | instead.")
         for label in labels:
-            symbolic = SymbolicName(label)
-            validate_name(symbolic.value)
-            if symbolic not in merged:
-                merged.append(symbolic)
-        return NodePattern(tuple(merged), self.variable, self.properties)
+            validate_name(label)
+            if label not in names:
+                names.append(label)
+        terms = tuple(LabelName(SymbolicName(name)) for name in names)
+        label_expression: LabelExpression = terms[0] if len(terms) == 1 else ColonConjunction(terms)
+        return NodePattern(label_expression, self.variable, self.properties)
 
     def relationship_to(
         self,
         target: NodePattern,
-        relationship_type: str | None = None,
+        relationship_type: str | LabelExpression | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -261,12 +295,12 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the far end of the relationship.
-            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
+            relationship_type: Relationship type or type expression to match, or ``None`` for an untyped relationship.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 
         Returns:
-            A one-hop relationship pattern, which can be extended further.
+            A single-relationship pattern, which can be extended further.
 
         Raises:
             DslError: If ``target`` is not a node pattern.
@@ -279,7 +313,7 @@ class NodePattern(PatternElement, NamedExpression):
     def relationship_from(
         self,
         target: NodePattern,
-        relationship_type: str | None = None,
+        relationship_type: str | LabelExpression | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -288,12 +322,12 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the source of the incoming relationship.
-            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
+            relationship_type: Relationship type or type expression to match, or ``None`` for an untyped relationship.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 
         Returns:
-            A one-hop relationship pattern, which can be extended further.
+            A single-relationship pattern, which can be extended further.
 
         Raises:
             DslError: If ``target`` is not a node pattern.
@@ -306,7 +340,7 @@ class NodePattern(PatternElement, NamedExpression):
     def relationship_with(
         self,
         target: NodePattern,
-        relationship_type: str | None = None,
+        relationship_type: str | LabelExpression | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -315,12 +349,12 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the other end of the relationship.
-            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
+            relationship_type: Relationship type or type expression to match, or ``None`` for an untyped relationship.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 
         Returns:
-            A one-hop relationship pattern, which can be extended further.
+            A single-relationship pattern, which can be extended further.
 
         Raises:
             DslError: If ``target`` is not a node pattern.
@@ -333,7 +367,7 @@ class NodePattern(PatternElement, NamedExpression):
 
 def _same_node_declaration(left: NodePattern, right: NodePattern) -> bool:
     """Compare declaration content without treating an alias as a different node."""
-    if left.labels != right.labels:
+    if not structurally_equal(left.label_expression, right.label_expression):
         return False
     if left.properties is None or right.properties is None:
         return left.properties is None and right.properties is None
@@ -341,27 +375,35 @@ def _same_node_declaration(left: NodePattern, right: NodePattern) -> bool:
 
 
 def node(
-    primary_label: str,
+    primary_label: str | LabelExpression,
     name: str | None = None,
     properties: Mapping[str, ExpressionInput] | Expression | None = None,
 ) -> NodePattern:
     """
-    Build a node pattern with one primary label.
+    Build a node pattern with one primary label or a label expression.
 
     Args:
-        primary_label: First label. At least one label is required by the grammar.
+        primary_label: First label, or a label expression built from ``label()`` terms.
         name: Optional variable that binds the node in the surrounding clause.
         properties: Explicit property entries, whole-map expression, or ``None``.
 
     Returns:
-        An immutable node pattern. Use ``with_labels`` for further labels.
+        An immutable node pattern. Use ``with_labels`` for further plain labels.
 
     Raises:
         InvalidIdentifierError: If the label or variable fails name validation.
-        DslError: If ``properties`` is not a mapping, an expression or ``None``.
+        DslError: If ``primary_label`` is neither a string nor a label expression, or
+            ``properties`` is not a mapping, an expression or ``None``.
     """
+    if not isinstance(primary_label, LabelExpression) and not isinstance(primary_label, str):
+        raise DslError(
+            f"A node pattern's labels must be a string or a label expression, not {type(primary_label).__name__}."
+        )
+    label_expression = (
+        primary_label if isinstance(primary_label, LabelExpression) else LabelName(SymbolicName(primary_label))
+    )
     return NodePattern(
-        labels=(SymbolicName(primary_label),),
+        label_expression=label_expression,
         variable=None if name is None else SymbolicName(name),
         properties=coerce_pattern_properties(properties),
     )

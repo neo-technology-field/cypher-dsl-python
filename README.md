@@ -11,7 +11,9 @@ installation belong to the application or its test harness.
 ## Documentation
 
 The user guide and API reference are published at
-https://neo-technology-field.github.io/cypher-dsl-python/.
+https://neo-technology-field.github.io/cypher-dsl-python/. The
+[Supported Cypher](https://neo-technology-field.github.io/cypher-dsl-python/support.html) page
+lists which cheat-sheet features the builders cover.
 
 ## Install
 

@@ -20,7 +20,8 @@ nothing to stand in.
 Build a node pattern
 --------------------
 
-``node()`` takes one primary label, an optional variable and an optional property map:
+``node()`` takes one primary label or a label expression, an optional variable and an
+optional property map:
 
 .. code-block:: python
 
@@ -105,6 +106,84 @@ base pattern and extend it differently:
 Duplicate labels and labels already present are ignored, and the original pattern is
 unchanged.
 
+.. _label-expression:
+
+Match labels with an expression
+-------------------------------
+
+A label expression is a predicate over a node's labels or a relationship's type, built
+from :func:`~cypher_dsl.label` terms with ``&`` (both), ``|`` (either) and ``~`` (not,
+which renders as ``!``), plus the ``ANY_LABEL`` wildcard for ``%``. Python's operator
+precedence matches Cypher's: ``~`` binds tightest, then ``&``, then ``|``. Parentheses in
+Python group exactly the way they render:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Python
+     - Renders in a node pattern
+   * - ``label("A")``
+     - ``:A``
+   * - ``label("A") & label("B")``
+     - ``:A&B``
+   * - ``label("A") | label("B")``
+     - ``:A|B``
+   * - ``~label("A")``
+     - ``:!A``
+   * - ``ANY_LABEL``
+     - ``:%``
+   * - ``label("A") & (label("B") | label("C"))``
+     - ``:A&(B|C)``
+   * - ``(label("A") & label("B")) & ~(label("B") & label("C"))``
+     - ``:A&B&!(B&C)``
+   * - ``~(~label("A"))``
+     - ``:!!A``
+
+In a relationship detail the same term text follows the colon inside the brackets, so
+``label("R") | label("S")`` renders ``-[:R|S]->``.
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, label, match, node
+
+    pattern = node(label("Movie") | label("Person"), name="n")
+    statement = match(pattern).returning(pattern["title"])
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (n:Movie|Person) RETURN n.title
+
+The same terms express relationship types. A relationship has exactly one type, so a
+union is the useful form, and ``ANY_LABEL`` matches any typed relationship:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, label, match, node
+
+    credits = node("Person", name="p").relationship_to(
+        node("Movie"), label("ACTED_IN") | label("DIRECTED"), name="r"
+    )
+    statement = match(credits).returning(credits["character"])
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)-[r:ACTED_IN|DIRECTED]->(:Movie) RETURN r.character
+
+- ``node("A")`` and ``with_labels`` keep rendering plain labels, ``:A`` and ``:A:B``.
+  ``with_labels`` rejects a pattern whose labels are already an expression; combine the
+  terms with ``&`` or ``|`` instead.
+- ``CREATE`` and ``MERGE`` attach labels, so they take plain labels and one plain
+  relationship type. A ``&``, ``|``, ``!`` or ``%`` term states what to match, not what to
+  attach, and is rejected with a remedy.
+- The legacy ``:A|:B`` spelling is not a union: it is one type name, so it renders quoted
+  and matches only a type with that literal name.
+
 Connect two patterns
 --------------------
 
@@ -141,14 +220,14 @@ from the node they are called on, ``relationship_from`` points towards it, and
     MATCH (p:Person)<-[d:DIRECTED]-(m:Movie) RETURN p.display_name
     MATCH (p:Person)-[:ACTED_IN]-(m:Movie) RETURN p.display_name
 
-A hop is one relationship in the pattern. The variable is optional in read and write
-patterns alike, as the third line shows. The type is optional in a read pattern, and
-there is no way to list several types on one hop.
+A chain is built from relationships. The variable is optional in read and write patterns
+alike, as the third line shows. The type is optional in a read pattern; several types are
+written as one :ref:`label expression <label-expression>`.
 
-.. _untyped-hop:
+.. _untyped-relationship:
 
-Omit ``relationship_type`` to match a relationship of any type. The hop renders the
-bare arrow forms, and the variable and property map stay optional inside the brackets:
+Omit ``relationship_type`` to match a relationship of any type. The arrow then renders
+bare, and the variable and property map stay optional inside the brackets:
 
 .. code-block:: python
 
@@ -172,11 +251,11 @@ bare arrow forms, and the variable and property map stay optional inside the bra
     MATCH (p:Person)-[r]->(m:Movie) RETURN m.title
     MATCH (p:Person)<-[{since: 1}]-(m:Movie) RETURN m.title
 
-Extend a chain across several hops
-----------------------------------
+Extend a chain across several relationships
+-------------------------------------------
 
 The factories on a relationship pattern extend the chain from its current endpoint, which
-is how a multi-hop path stays one pattern instead of several:
+is how a path across multiple relationships stays one pattern instead of several:
 
 .. code-block:: python
 
@@ -200,9 +279,9 @@ is how a multi-hop path stays one pattern instead of several:
     MATCH (p:Person)-[:ACTED_IN]->(m:Movie)-[:IN_SERIES]->(s:Series)
     RETURN m.title, s.title
 
-Adjacent hops must meet at the same node pattern object, so a chain cannot accidentally
-describe two different nodes with one name. Build chains by extending from the endpoint
-rather than by constructing hops separately.
+Adjacent relationships must meet at the same node pattern object, so a chain cannot
+accidentally describe two different nodes with one name. Build chains by extending from
+the endpoint rather than by constructing relationships separately.
 
 Reuse a bound pattern in a write
 --------------------------------
@@ -249,9 +328,12 @@ What to watch out for
 
 - A label is required on every node pattern, and a name that cannot be an identifier is
   rejected when the pattern is built.
-- A read hop may leave the type out (:ref:`untyped hop <untyped-hop>`). ``CREATE`` and
-  ``MERGE`` require exactly one type. ``CREATE`` additionally requires a direction,
-  while ``MERGE`` accepts an undirected hop.
+- A read pattern may leave the relationship type out (:ref:`untyped relationship
+  <untyped-relationship>`). ``CREATE`` and ``MERGE`` require exactly one type. ``CREATE``
+  additionally requires a direction, while ``MERGE`` accepts an undirected relationship:
+  it matches either direction and creates left to right, as the `MERGE manual
+  <https://neo4j.com/docs/cypher-manual/5/clauses/merge/#undirected-relationships>`_
+  defines.
 - A conflicting label or property declaration on a bound endpoint is rejected rather than
   silently discarded.
 - A name that matches a Cypher keyword, such as ``role``, renders backticked. The

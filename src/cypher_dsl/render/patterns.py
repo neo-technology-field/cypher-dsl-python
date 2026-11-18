@@ -1,10 +1,20 @@
-"""Construct renderers for node and relationship patterns."""
+"""Construct renderers for node and relationship patterns and their label expressions."""
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Final, cast
 
 from cypher_dsl.errors import DslError
+from cypher_dsl.patterns.labels import (
+    AnyLabel,
+    ColonConjunction,
+    LabelConjunction,
+    LabelDisjunction,
+    LabelExpression,
+    LabelName,
+    LabelNegation,
+    LabelPrecedence,
+)
 from cypher_dsl.patterns.nodes import NodePattern, PatternProperties
 from cypher_dsl.patterns.relationships import Relationship, RelationshipDirection, RelationshipPattern
 from cypher_dsl.render.context import RenderContext
@@ -21,6 +31,49 @@ _DIRECTION_MARKS: Final = {
 }
 
 
+def _grouped_term(fragment: Fragment, parent: LabelPrecedence, close_equal: bool) -> str:
+    """Add parentheses when a label term binds less tightly than its parent."""
+    child = cast(LabelExpression, fragment.node).precedence
+    if child < parent or (close_equal and child == parent):
+        return f"({fragment.text})"
+    return fragment.text
+
+
+def label_name(node: LabelName, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render one label or type name."""
+    return quote_identifier(node.name.value, context.always_escape_names)
+
+
+def any_label(node: AnyLabel, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render the wildcard that matches any labelled element."""
+    return "%"
+
+
+def colon_conjunction(node: ColonConjunction, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render plain labels joined by a colon."""
+    return ":".join(child.text for child in children)
+
+
+def label_conjunction(node: LabelConjunction, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render two terms joined by & with minimal parentheses."""
+    left = _grouped_term(children[0], node.precedence, close_equal=False)
+    right = _grouped_term(children[1], node.precedence, close_equal=True)
+    return f"{left}&{right}"
+
+
+def label_disjunction(node: LabelDisjunction, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render two terms joined by | with minimal parentheses."""
+    left = _grouped_term(children[0], node.precedence, close_equal=False)
+    right = _grouped_term(children[1], node.precedence, close_equal=True)
+    return f"{left}|{right}"
+
+
+def label_negation(node: LabelNegation, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render a negated term; a same-level operand such as !!A needs no parentheses."""
+    operand = _grouped_term(children[0], node.precedence, close_equal=False)
+    return f"!{operand}"
+
+
 def node_pattern(node: NodePattern, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render a node declaration, or only its variable when its occurrence is a reference."""
     if not isinstance(context.facts, NodePatternFacts):
@@ -30,10 +83,9 @@ def node_pattern(node: NodePattern, children: tuple[Fragment, ...], context: Ren
         variable = "" if node.variable is None else quote_identifier(node.variable.value, escape)
         return f"({variable})"
     variable = "" if node.variable is None else quote_identifier(node.variable.value, escape)
-    labels = ":".join(quote_identifier(label.value, escape) for label in node.labels)
-    text = f"({variable}:{labels}"
-    if children:
-        text = context.layout.tokens(text, children[0].text)
+    text = f"({variable}:{children[0].text}"
+    if len(children) > 1:
+        text = context.layout.tokens(text, children[1].text)
     return f"{text})"
 
 
@@ -43,19 +95,21 @@ def pattern_properties(node: PatternProperties, children: tuple[Fragment, ...], 
 
 
 def relationship_pattern(node: RelationshipPattern, children: tuple[Fragment, ...], context: RenderContext) -> str:
-    """Render the start node and relationship hops without separators."""
+    """Render the start node and relationships without separators."""
     return "".join(child.text for child in children)
 
 
 def relationship(node: Relationship, children: tuple[Fragment, ...], context: RenderContext) -> str:
-    """Render one directed or undirected relationship hop and its reached node."""
+    """Render one directed or undirected relationship and its reached node."""
     escape = context.always_escape_names
     left_mark, right_mark = _DIRECTION_MARKS[node.direction]
     details = "" if node.variable is None else quote_identifier(node.variable.value, escape)
-    if node.relationship_type is not None:
-        details = f"{details}:{quote_identifier(node.relationship_type.value, escape)}"
+    index = 0
+    if node.type_expression is not None:
+        details = f"{details}:{children[index].text}"
+        index += 1
     if node.properties is not None:
-        properties_text = children[0].text
+        properties_text = children[index].text
         details = properties_text if not details else context.layout.tokens(details, properties_text)
     target = children[-1].text
     bracket = "" if not details else f"[{details}]"
@@ -65,6 +119,12 @@ def relationship(node: Relationship, children: tuple[Fragment, ...], context: Re
 def pattern_bindings() -> tuple[RuleBinding, ...]:
     """Return the node and relationship pattern construct renderers."""
     return (
+        bind(LabelName, label_name),
+        bind(AnyLabel, any_label),
+        bind(ColonConjunction, colon_conjunction),
+        bind(LabelConjunction, label_conjunction),
+        bind(LabelDisjunction, label_disjunction),
+        bind(LabelNegation, label_negation),
         bind(NodePattern, node_pattern),
         bind(PatternProperties, pattern_properties),
         bind(RelationshipPattern, relationship_pattern),

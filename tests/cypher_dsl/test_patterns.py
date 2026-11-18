@@ -34,6 +34,7 @@ from cypher_dsl import (
 )
 from cypher_dsl.errors import DslError, EmptyPatternError, InvalidIdentifierError, InvalidLiteralError
 from cypher_dsl.expressions.base import coerce_expression
+from cypher_dsl.patterns.labels import ColonConjunction, LabelName, label
 
 _RETURN_REF = " RETURN ref"
 
@@ -63,8 +64,10 @@ def test_with_labels_returns_a_new_node_with_unique_labels_in_insertion_order():
     base = node("Person", name="p")
     extended = base.with_labels("Actor", "Director", "Actor")
     assert extended is not base
-    assert base.labels == (SymbolicName("Person"),)
-    assert extended.labels == (SymbolicName("Person"), SymbolicName("Actor"), SymbolicName("Director"))
+    assert isinstance(base.label_expression, LabelName)
+    assert base.label_expression.name.value == "Person"
+    assert isinstance(extended.label_expression, ColonConjunction)
+    assert [term.name.value for term in extended.label_expression.terms] == ["Person", "Actor", "Director"]
     assert _pattern(extended) == "(p:Person:Actor:Director)"
 
 
@@ -92,12 +95,12 @@ def test_relationship_name_and_properties_render_inside_the_brackets():
 
 
 def test_anonymous_relationships_without_details_have_no_brackets():
-    hop = Relationship(
+    relationship = Relationship(
         node("Person", name="p"),
         node("Movie", name="m"),
         RelationshipDirection.OUTGOING,
     )
-    assert _pattern(RelationshipPattern((hop,))) == "(p:Person)-->(m:Movie)"
+    assert _pattern(RelationshipPattern((relationship,))) == "(p:Person)-->(m:Movie)"
 
 
 def test_anonymous_endpoints_render_but_cannot_become_references():
@@ -178,7 +181,7 @@ def test_chains_extend_from_the_current_endpoint():
     chain = person.relationship_to(movie, "ACTED_IN", name="r").relationship_with(studio, "PRODUCED_BY")
     assert chain.start is person
     assert chain.endpoint is studio
-    assert [hop.right for hop in chain.relationships] == [movie, studio]
+    assert [relationship.right for relationship in chain.relationships] == [movie, studio]
     assert _pattern(chain) == "(p:Person)-[r:ACTED_IN]->(m:Movie)-[:PRODUCED_BY]-(s:Studio)"
 
 
@@ -234,14 +237,14 @@ def test_direct_property_map_construction_rejects_an_aliased_value():
     with pytest.raises(DslError, match="alias"):
         PatternProperties(((SymbolicName("title"), lit("x").alias("other")),))
     accepted = PatternProperties(((SymbolicName("title"), lit("x")),))
-    movie = NodePattern((SymbolicName("Movie"),), SymbolicName("m"), accepted)
+    movie = NodePattern(LabelName(SymbolicName("Movie")), SymbolicName("m"), accepted)
     assert _pattern(movie) == "(m:Movie {title: 'x'})"
 
 
 def test_direct_node_construction_rejects_an_aliased_property_value():
     with pytest.raises(DslError, match="alias"):
         NodePattern(
-            (SymbolicName("Movie"),),
+            LabelName(SymbolicName("Movie")),
             SymbolicName("m"),
             PatternProperties(((SymbolicName("title"), lit("x").alias("other")),)),
         )
@@ -253,7 +256,7 @@ def test_direct_relationship_construction_rejects_an_aliased_property_value():
             node("Person", name="p"),
             node("Movie", name="m"),
             RelationshipDirection.OUTGOING,
-            SymbolicName("ACTED_IN"),
+            label("ACTED_IN"),
             properties=PatternProperties(((SymbolicName("role"), lit("x").alias("other")),)),
         )
 
@@ -307,7 +310,7 @@ def test_pattern_elements_expose_the_nodes_they_contain():
     assert chain.nodes() == (person, movie, studio)
 
 
-def test_untyped_hops_render_through_each_direction_factory():
+def test_untyped_relationships_render_through_each_direction_factory():
     person = node("Person", name="a")
     other = node("Person", name="b")
     assert _pattern(person.relationship_to(other)) == "(a:Person)-->(b:Person)"
@@ -315,22 +318,22 @@ def test_untyped_hops_render_through_each_direction_factory():
     assert _pattern(person.relationship_with(other)) == "(a:Person)--(b:Person)"
 
 
-def test_an_untyped_hop_with_a_variable_renders_the_bracket():
+def test_an_untyped_relationship_with_a_variable_renders_the_bracket():
     person = node("Person", name="a")
     other = node("Person", name="b")
-    hop = person.relationship_to(other, name="r")
-    assert _pattern(hop) == "(a:Person)-[r]->(b:Person)"
+    relationship = person.relationship_to(other, name="r")
+    assert _pattern(relationship) == "(a:Person)-[r]->(b:Person)"
     assert _pattern(person.relationship_to(other, None, name="r")) == "(a:Person)-[r]->(b:Person)"
 
 
-def test_an_untyped_hop_with_properties_renders_only_the_map():
+def test_an_untyped_relationship_with_properties_renders_only_the_map():
     person = node("Person", name="a")
     other = node("Person", name="b")
-    hop = person.relationship_with(other, properties={"since": 1})
-    assert _pattern(hop) == "(a:Person)-[{since: 1}]-(b:Person)"
+    relationship = person.relationship_with(other, properties={"since": 1})
+    assert _pattern(relationship) == "(a:Person)-[{since: 1}]-(b:Person)"
 
 
-def test_a_chain_mixes_typed_and_untyped_hops():
+def test_a_chain_mixes_typed_and_untyped_relationships():
     person = node("Person", name="a")
     movie = node("Movie", name="m")
     series = node("Series", name="s")
@@ -338,11 +341,11 @@ def test_a_chain_mixes_typed_and_untyped_hops():
     assert _pattern(path) == "(a:Person)-[:ACTED_IN]->(m:Movie)--(s:Series)"
 
 
-def test_a_named_untyped_hop_is_usable_as_an_expression():
+def test_a_named_untyped_relationship_is_usable_as_an_expression():
     person = node("Person", name="a")
     other = node("Person", name="b")
-    hop = person.relationship_to(other, name="r")
-    rendered = Renderer.get(Configuration(server_version="5.26")).render(match(hop).returning(hop))
+    relationship = person.relationship_to(other, name="r")
+    rendered = Renderer.get(Configuration(server_version="5.26")).render(match(relationship).returning(relationship))
     assert rendered.cypher == "MATCH (a:Person)-[r]->(b:Person) RETURN r"
 
 

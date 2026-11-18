@@ -39,7 +39,7 @@ def test_with_wildcard_retains_a_node_declaration_for_a_write_endpoint() -> None
 
     assert analysis.facts_for((0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
     assert analysis.facts_for((2, 0, 0)) == NodePatternFacts(DeclarationRole.REFERENCE)
-    assert analysis.facts_for((2, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_raw_with_retains_known_node_declarations_for_write_endpoints() -> None:
@@ -50,7 +50,7 @@ def test_raw_with_retains_known_node_declarations_for_write_endpoints() -> None:
 
     assert analysis.facts_for((0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
     assert analysis.facts_for((2, 0, 0)) == NodePatternFacts(DeclarationRole.REFERENCE)
-    assert analysis.facts_for((2, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_with_wildcard_does_not_treat_a_new_write_endpoint_as_a_reference() -> None:
@@ -60,7 +60,7 @@ def test_with_wildcard_does_not_treat_a_new_write_endpoint_as_a_reference() -> N
     analysis = analyse(statement)
 
     assert analysis.facts_for((2, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
-    assert analysis.facts_for((2, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_non_wildcard_with_drops_node_declarations_it_does_not_project() -> None:
@@ -72,7 +72,7 @@ def test_non_wildcard_with_drops_node_declarations_it_does_not_project() -> None
 
     assert analysis.facts_for((0, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
     assert analysis.facts_for((2, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
-    assert analysis.facts_for((2, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_shared_node_self_loop_uses_each_occurrences_declaration_role() -> None:
@@ -80,7 +80,7 @@ def test_shared_node_self_loop_uses_each_occurrences_declaration_role() -> None:
     analysis = analyse(create(person.relationship_to(person, "KNOWS")).build())
 
     assert analysis.facts_for((0, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
-    assert analysis.facts_for((0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.REFERENCE)
+    assert analysis.facts_for((0, 0, 1, 1)) == NodePatternFacts(DeclarationRole.REFERENCE)
 
 
 def test_anonymous_create_node_is_a_declaration() -> None:
@@ -100,7 +100,7 @@ def test_anonymous_write_endpoint_and_named_start_are_declarations() -> None:
     analysis = analyse(create(person.relationship_to(node("Movie"), "ACTED_IN")).build())
 
     assert analysis.facts_for((0, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
-    assert analysis.facts_for((0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((0, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_anonymous_write_pattern_does_not_consume_named_declarations() -> None:
@@ -166,9 +166,9 @@ def test_reused_call_body_has_scope_sensitive_facts_at_each_occurrence() -> None
 
     assert analysis.facts_for((0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
     assert analysis.facts_for((1, 0, 0, 0, 0)) == NodePatternFacts(DeclarationRole.REFERENCE)
-    assert analysis.facts_for((1, 0, 0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((1, 0, 0, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
     assert analysis.facts_for((2, 0, 0, 0, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
-    assert analysis.facts_for((2, 0, 0, 0, 1, 0)) == NodePatternFacts(DeclarationRole.DECLARE)
+    assert analysis.facts_for((2, 0, 0, 0, 1, 1)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
 def test_nested_union_calls_record_requirements_at_each_call_occurrence() -> None:

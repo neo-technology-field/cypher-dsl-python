@@ -8,7 +8,7 @@ available to the clauses after the call.
 
 .. code-block:: python
 
-    from cypher_dsl import match, name, node
+    from cypher_dsl import Configuration, Renderer, match, name, node
 
     person = node("Person", name="p")
     movie = node("Movie", name="m")
@@ -19,12 +19,14 @@ available to the clauses after the call.
     )
     statement = match(person).call(body, imports=("p",)).returning(name("title"))
 
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
+
 .. code-block:: cypher
 
     MATCH (p:Person)
     CALL (p) {
-      MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
-      RETURN m.title AS title
+      MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title
     }
     RETURN title
 

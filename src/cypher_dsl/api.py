@@ -8,11 +8,13 @@ from cypher_dsl.expressions.collections import list_, map_
 from cypher_dsl.expressions.functions import asterisk, count, element_id, fn, raw
 from cypher_dsl.expressions.operators import boolean_operation, condition, contains, ends_with, in_, starts_with
 from cypher_dsl.expressions.values import asc, desc, lit, name, param
+from cypher_dsl.patterns.labels import ANY_LABEL, label
 from cypher_dsl.patterns.nodes import node
 from cypher_dsl.statements.builder import returning, with_
 from cypher_dsl.statements.composition import union
 
 __all__ = [
+    "ANY_LABEL",
     "asc",
     "assign",
     "asterisk",
@@ -28,6 +30,7 @@ __all__ = [
     "ends_with",
     "fn",
     "in_",
+    "label",
     "list_",
     "lit",
     "map_",

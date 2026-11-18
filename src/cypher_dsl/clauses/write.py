@@ -26,6 +26,7 @@ from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpres
 from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.values import Literal, Parameter, SymbolicName, Variable, _FrozenMap, validate_name
+from cypher_dsl.patterns.labels import LabelName, require_plain_labels
 from cypher_dsl.patterns.nodes import PatternElement, PatternProperties, require_explicit_properties
 from cypher_dsl.patterns.relationships import RelationshipDirection, RelationshipPattern
 
@@ -87,16 +88,18 @@ def _require_create_properties(pattern: PatternElement) -> None:
 
 def _require_create_relationships(pattern: PatternElement) -> None:
     """
-    Reject relationship hops that CREATE cannot write.
+    Reject a relationship pattern that CREATE cannot write.
 
-    MERGE permits an undirected relationship, but CREATE needs an explicit direction.
-    Both write clauses require exactly one type. Untyped relationships remain valid
-    in read patterns only.
+    CREATE needs an explicit direction; MERGE accepts an undirected relationship. Both
+    write clauses require exactly one type. Untyped relationships remain valid in read
+    patterns only.
     """
     if not isinstance(pattern, RelationshipPattern):
         return
-    for hop in pattern.relationships:
-        if hop.direction is RelationshipDirection.UNDIRECTED:
+    # CREATE-only: an undirected MERGE matches either direction and creates left to right.
+    # https://neo4j.com/docs/cypher-manual/5/clauses/merge/#undirected-relationships
+    for relationship in pattern.relationships:
+        if relationship.direction is RelationshipDirection.UNDIRECTED:
             raise DslError(
                 "CREATE relationships need a direction. Use relationship_to or relationship_from "
                 "instead of relationship_with."
@@ -105,11 +108,21 @@ def _require_create_relationships(pattern: PatternElement) -> None:
 
 
 def _require_relationship_types(pattern: PatternElement, keyword: str) -> None:
-    """Reject untyped write hops without imposing CREATE's direction rule on MERGE."""
+    """
+    Reject a write relationship with no type, or with a type expression rather than one type.
+
+    CREATE's direction rule lives in _require_create_relationships, because MERGE accepts
+    an undirected relationship.
+    """
     if isinstance(pattern, RelationshipPattern):
-        for hop in pattern.relationships:
-            if hop.relationship_type is None:
+        for relationship in pattern.relationships:
+            if relationship.type_expression is None:
                 raise DslError(f"{keyword} relationships need exactly one relationship type.")
+            if not isinstance(relationship.type_expression, LabelName):
+                raise DslError(
+                    f"{keyword} accepts one plain relationship type, not a type expression. "
+                    "Attach one type, or match with a type expression in a MATCH pattern."
+                )
 
 
 def _require_label_target(target: Expression) -> Variable:
@@ -282,8 +295,9 @@ class CreateClause(Clause):
         Raises:
             EmptyPatternError: If no pattern is present.
             DslError: If a pattern is not a pattern element, its properties are neither
-                an explicit map nor a parameter, a relationship is undirected, or a
-                relationship has no type. The collection must also be a tuple.
+                an explicit map nor a parameter, a node carries a label expression rather
+                than plain labels, a relationship is undirected, or a relationship has no
+                type or carries a type expression. The collection must also be a tuple.
         """
         _require_tuple(self.patterns, "CREATE patterns")
         if not self.patterns:
@@ -291,6 +305,9 @@ class CreateClause(Clause):
         for pattern in self.patterns:
             if not isinstance(pattern, PatternElement):
                 raise DslError(f"CREATE accepts pattern elements, not {type(pattern).__name__}.")
+            require_plain_labels(
+                pattern, "CREATE", "Attach plain labels, or match with a label expression in a MATCH pattern."
+            )
             _require_create_properties(pattern)
             _require_create_relationships(pattern)
 
@@ -354,12 +371,17 @@ class MergeClause(Clause):
 
         Raises:
             DslError: If the pattern is not a pattern element, uses a whole-map property
-                expression, or the action list is not a tuple of distinct merge actions.
+                expression, a node carries a label expression rather than plain labels, a
+                relationship carries a type expression, or the action list is not a tuple
+                of distinct merge actions.
         """
         if not isinstance(self.pattern, PatternElement):
             raise DslError(f"MERGE accepts one pattern element, not {type(self.pattern).__name__}.")
         require_explicit_properties(
             self.pattern, "MERGE", "Write the identity properties explicitly in the pattern, or use map_()."
+        )
+        require_plain_labels(
+            self.pattern, "MERGE", "Attach plain labels, or match with a label expression in a MATCH pattern."
         )
         _require_relationship_types(self.pattern, "MERGE")
         _require_tuple(self.actions, "MERGE actions")
@@ -523,7 +545,9 @@ def create(*patterns: PatternElement) -> StatementBuilder:
 
     Raises:
         EmptyPatternError: If no pattern is supplied.
-        DslError: If a pattern is not a pattern element.
+        DslError: If a pattern is not a pattern element, a node carries a label
+            expression rather than plain labels, or a relationship carries a type
+            expression rather than one type.
     """
     from cypher_dsl.statements.builder import StatementBuilder
 
@@ -544,8 +568,9 @@ def merge(pattern: PatternElement) -> StatementBuilder:
         ``RETURN``.
 
     Raises:
-        DslError: If the pattern is not a pattern element or uses a whole-map property
-            expression.
+        DslError: If the pattern is not a pattern element, uses a whole-map property
+            expression, a node carries a label expression rather than plain labels, or a
+            relationship carries a type expression rather than one type.
     """
     from cypher_dsl.statements.builder import StatementBuilder
 

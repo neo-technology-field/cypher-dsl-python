@@ -39,6 +39,7 @@ from cypher_dsl import (
 from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.clauses.projection import ProjectionClause
 from cypher_dsl.errors import DslError
+from cypher_dsl.patterns.labels import ANY_LABEL, LabelExpression, label
 from cypher_dsl.render.expressions import expression_bindings
 from cypher_dsl.render.filters import filter_bindings
 from cypher_dsl.render.patterns import pattern_bindings
@@ -278,7 +279,7 @@ def test_element_id_renders_through_rules() -> None:
 
 
 def test_shared_bindings_render_every_concrete_grammar_node() -> None:
-    abstract_bases = {Clause, Condition, Expression, PatternElement, ProjectionClause}
+    abstract_bases = {Clause, Condition, Expression, LabelExpression, PatternElement, ProjectionClause}
 
     def subclasses(parent: type[AstNode]) -> set[type[AstNode]]:
         found: set[type[AstNode]] = set()
@@ -339,6 +340,13 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         match(person).detach_delete(person).build(),
         union(returning(lit(1).alias("x")), returning(lit(2).alias("x"))),
         union(returning(lit(1).alias("x")), returning(lit(2).alias("x")), all=True),
+        match(
+            node((label("A") & label("B")) | ~label("C"), name="p"),
+            node(ANY_LABEL),
+            node("Person").with_labels("Staff"),
+        )
+        .returning(lit(1))
+        .build(),
     )
     rendered: set[type[AstNode]] = set()
     rules = RenderingRules.from_bindings(shared_bindings())

@@ -1,10 +1,11 @@
 cypher-dsl
 ==========
 
-Build Cypher queries as Python objects using a DSL and render them to text plus parameters. The
-library covers the read and write subset of Cypher 5 that this release implements. It
-does not connect to a database, so building a :ref:`statement <statement>` and executing it stay separate
-concerns.
+Build Cypher queries as Python objects using a DSL and render them to text plus
+parameters. The library covers the read and write subset of Cypher 5 that this release
+implements; :doc:`support` lists exactly which cheat-sheet features it covers and which
+it does not. It does not connect to a database, so building a :ref:`statement <statement>`
+and executing it stay separate concerns.
 
 .. code-block:: python
 
@@ -36,6 +37,7 @@ string interpolation.
    :caption: Contents
 
    getting-started
+   support
    patterns
    reading
    writing

@@ -51,7 +51,7 @@ def classify_write_declarations(
         endpoint_nodes: set[int] = set()
         if isinstance(pattern, RelationshipPattern):
             endpoint_nodes = {id(pattern.start)}
-            endpoint_nodes.update(id(hop.right) for hop in pattern.relationships)
+            endpoint_nodes.update(id(relationship.right) for relationship in pattern.relationships)
         for node_pattern in pattern.nodes():
             if node_pattern.variable is None:
                 continue
@@ -92,9 +92,9 @@ def write_property_references(
             if role is DeclarationRole.DECLARE and node.properties is not None:
                 references.extend(free_variables_in(node.properties))
         if isinstance(pattern, RelationshipPattern):
-            for hop in pattern.relationships:
-                if hop.properties is not None:
-                    references.extend(free_variables_in(hop.properties))
+            for relationship in pattern.relationships:
+                if relationship.properties is not None:
+                    references.extend(free_variables_in(relationship.properties))
     return tuple(references)
 
 
@@ -158,9 +158,9 @@ class _PatternWriteRule(SemanticRule):
                 ):
                     reject_reserved_redeclaration(name)
             if isinstance(pattern, RelationshipPattern):
-                for hop in pattern.relationships:
-                    if hop.variable is not None and hop.variable.value in frame.reserved:
-                        reject_reserved_redeclaration(hop.variable.value)
+                for relationship in pattern.relationships:
+                    if relationship.variable is not None and relationship.variable.value in frame.reserved:
+                        reject_reserved_redeclaration(relationship.variable.value)
 
 
 class CreateRule(_PatternWriteRule):

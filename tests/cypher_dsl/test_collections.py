@@ -100,8 +100,8 @@ def test_conflicting_bindings_inside_one_collection_tree_are_rejected():
 def test_a_map_expression_can_stand_in_a_create_property_position():
     alice = node("Person", name="a")
     bob = node("Person", name="b")
-    hop = alice.relationship_to(bob, "KNOWS", name="k", properties=map_({"since": 2020}))
-    assert _render(create(alice, hop)).cypher == ("CREATE (a:Person), (a)-[k:KNOWS {since: 2020}]->(b:Person)")
+    relationship = alice.relationship_to(bob, "KNOWS", name="k", properties=map_({"since": 2020}))
+    assert _render(create(alice, relationship)).cypher == ("CREATE (a:Person), (a)-[k:KNOWS {since: 2020}]->(b:Person)")
     with pytest.raises(DslError, match="map"):
         create(node("Person", name="p", properties=list_(1, 2)))
 
@@ -113,11 +113,11 @@ def test_a_map_expression_supplies_explicit_match_and_merge_properties():
     assert _render(optional_match(alice).returning(alice)).cypher == "OPTIONAL MATCH (a:Person {uid: $uid}) RETURN a"
     assert _render(merge(alice).returning(alice)).cypher == "MERGE (a:Person {uid: $uid}) RETURN a"
 
-    hop = alice.relationship_to(bob, "KNOWS", name="k", properties=map_({"since": param("since", 2020)}))
-    assert _render(match(hop).returning(name("k"))).cypher == (
+    relationship = alice.relationship_to(bob, "KNOWS", name="k", properties=map_({"since": param("since", 2020)}))
+    assert _render(match(relationship).returning(name("k"))).cypher == (
         "MATCH (a:Person {uid: $uid})-[k:KNOWS {since: $since}]->(b:Person) RETURN k"
     )
-    assert _render(merge(hop).returning(name("k"))).cypher == (
+    assert _render(merge(relationship).returning(name("k"))).cypher == (
         "MERGE (a:Person {uid: $uid})-[k:KNOWS {since: $since}]->(b:Person) RETURN k"
     )
 

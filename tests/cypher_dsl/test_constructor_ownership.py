@@ -31,6 +31,7 @@ from cypher_dsl import (
     node,
 )
 from cypher_dsl.errors import DslError
+from cypher_dsl.patterns.labels import LabelName
 
 
 @pytest.mark.parametrize(
@@ -42,7 +43,6 @@ from cypher_dsl.errors import DslError
         lambda values: MatchClause(values),
         lambda values: FunctionInvocation(values, (lit(1),)),
         lambda values: FunctionInvocation(("coalesce",), values),
-        lambda values: NodePattern(values),
         lambda values: PatternProperties(values),
         lambda values: PatternProperties((values,)),
         lambda values: RelationshipPattern(values),
@@ -63,6 +63,11 @@ from cypher_dsl.errors import DslError
 def test_public_syntax_collections_reject_caller_owned_lists(construct):
     with pytest.raises(DslError, match=r"tuple|pair"):
         construct([])
+
+
+def test_a_node_pattern_label_position_holds_a_term_not_a_collection():
+    with pytest.raises(DslError, match="LabelExpression"):
+        NodePattern([])  # type: ignore[arg-type]
 
 
 def test_rejected_statement_list_cannot_change_a_finalised_statement():
@@ -96,7 +101,7 @@ def test_rejected_pattern_entry_list_cannot_change_finalised_properties():
     entry = [SymbolicName("uid"), lit(1)]
     with pytest.raises(DslError, match=r"tuple|pair"):
         PatternProperties((entry,))
-    person = NodePattern((SymbolicName("Person"),), SymbolicName("p"), PatternProperties((tuple(entry),)))
+    person = NodePattern(LabelName(SymbolicName("Person")), SymbolicName("p"), PatternProperties((tuple(entry),)))
     statement = Statement((CreateClause((person,)), SetClause((assign(person["active"], True),))))
     entry[1] = lit(2)
     assert Renderer.get(Configuration(server_version="5.26")).render(statement).cypher == (

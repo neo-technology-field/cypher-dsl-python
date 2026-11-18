@@ -115,10 +115,6 @@ class AnalysisSink:
         """Return the current occurrence path."""
         return self._path
 
-    def fact(self, value: OccurrenceFacts) -> None:
-        """Record facts for the current occurrence."""
-        self._facts[self._path] = value
-
     def requirement(self, capability: Capability, path: OccurrencePath | None = None) -> None:
         """Record a capability requirement for the current or a named occurrence."""
         self._requirements.append(SyntaxRequirement(capability, self._path if path is None else path))

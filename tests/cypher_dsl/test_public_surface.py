@@ -19,6 +19,7 @@ import typing
 
 import cypher_dsl
 from cypher_dsl import (
+    ANY_LABEL,
     Configuration,
     Language,
     RelationshipDirection,
@@ -39,6 +40,7 @@ from cypher_dsl import (
     ends_with,
     fn,
     in_,
+    label,
     list_,
     lit,
     map_,
@@ -115,6 +117,10 @@ RENDERS: dict[str, tuple[object, str]] = {
     "in_": (
         match(PERSON).where(in_(PERSON["uid"], list_("p1", "p2"))).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid IN ['p1', 'p2'] RETURN p",
+    ),
+    "label": (
+        match(node(label("Person") | label("Employee"), name="p")).returning(PERSON),
+        "MATCH (p:Person|Employee) RETURN p",
     ),
     "list_": (returning(list_("p1", "p2").alias("ids")), "RETURN ['p1', 'p2'] AS ids"),
     "lit": (returning(lit("Ada").alias("who")), "RETURN 'Ada' AS who"),
@@ -278,3 +284,8 @@ def test_public_aliases_and_sentinels_are_declared_kinds() -> None:
     aliases = {name for name in cypher_dsl.__all__ if _is_type_alias(getattr(cypher_dsl, name))}
     assert aliases == {"ExpressionInput", "FrozenValue", "LiteralInput", "ProjectionInput", "RenderInput"}
     assert cypher_dsl.UNBOUND is not None and not callable(cypher_dsl.UNBOUND)
+
+
+def test_label_expression_helpers_are_exported() -> None:
+    assert label("A").name.value == "A"
+    assert ANY_LABEL.precedence.value == 4

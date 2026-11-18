@@ -33,9 +33,9 @@ def pattern_bindings(patterns: tuple[PatternElement, ...]) -> tuple[str, ...]:
             if node.variable is not None:
                 names.append(node.variable.value)
         if isinstance(pattern, RelationshipPattern):
-            for hop in pattern.relationships:
-                if hop.variable is not None:
-                    names.append(hop.variable.value)
+            for relationship in pattern.relationships:
+                if relationship.variable is not None:
+                    names.append(relationship.variable.value)
     return merge_names(tuple(names))
 
 

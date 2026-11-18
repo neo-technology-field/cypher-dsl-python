@@ -83,7 +83,7 @@ duplicates, ``UNION ALL`` keeps them, and every branch ends in its own ``RETURN`
         all=True,
     )
 
-    renderer = Renderer.get(Configuration(server_version="5.26"))
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
     print(renderer.render(statement).cypher)
 
 .. code-block:: cypher

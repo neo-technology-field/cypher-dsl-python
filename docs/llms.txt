@@ -5,7 +5,8 @@
 ## Start here
 
 - [Getting started](getting-started.html): install, build and render a statement, read related nodes, write data.
-- [Describe nodes and relationships](patterns.html): labels, variables, property maps, relationship chains, reusing bound patterns.
+- [Supported Cypher](support.html): which cheat-sheet features the builders cover, which are not yet implemented and which are not planned.
+- [Describe nodes and relationships](patterns.html): labels, label expressions, variables, property maps, relationship chains, reusing bound patterns.
 - [Read and filter data](reading.html): optional matches, conditions, functions, projections, ordering and pagination.
 - [Create, merge, update and delete](writing.html): identity merges, SET forms, REMOVE, DELETE and dynamic property names.
 - [Compose query parts and unions](composing.html): WITH as a scope boundary, per-part ordering, UNION and reusing statements.

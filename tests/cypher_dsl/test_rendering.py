@@ -25,7 +25,9 @@ from cypher_dsl import (
     SymbolicName,
     UnionStatement,
     lit,
+    match,
     name,
+    node,
     param,
     returning,
     union,
@@ -38,6 +40,7 @@ from cypher_dsl.errors import (
     InvalidLiteralError,
     UnsupportedFeatureError,
 )
+from cypher_dsl.patterns.labels import ANY_LABEL, label
 from cypher_dsl.render.literals import escape_string
 
 
@@ -539,3 +542,94 @@ def test_mutating_a_rendered_parameter_dictionary_does_not_affect_a_later_render
     first.parameters["p"] = 99
     second = renderer.render(statement)
     assert second.parameters == {"p": 1}
+
+
+def _render_match(pattern):
+    statement = match(pattern).returning(lit(1))
+    return Renderer.get(Configuration(server_version="5.26")).render(statement).cypher
+
+
+@pytest.mark.parametrize(
+    ("term", "label_text"),
+    [
+        # Manual, Label expressions: each operator and the grouping table.
+        (label("A") & label("B"), "A&B"),
+        (label("A") | label("B"), "A|B"),
+        (~label("A"), "!A"),
+        (~(~label("A")), "!!A"),
+        (ANY_LABEL, "%"),
+        (~ANY_LABEL, "!%"),
+        (label("A") & (label("B") | label("C")), "A&(B|C)"),
+        ((label("A") & label("B")) & ~(label("B") & label("C")), "A&B&!(B&C)"),
+        (label("A") & (label("B") & label("C")), "A&(B&C)"),
+        ((label("A") | label("B")) & ~label("C"), "(A|B)&!C"),
+        (node("A").with_labels("B").label_expression, "A:B"),
+    ],
+)
+def test_label_expression_term_rendering(term, label_text):
+    # Source: Neo4j Cypher manual 5, Node and relationship patterns -> Label expressions.
+    assert _render_match(node(term)) == f"MATCH (:{label_text}) RETURN 1"
+
+
+@pytest.mark.parametrize(
+    ("type_term", "type_text"),
+    [
+        # Manual, Label expressions: "the syntax for expressions matching a relationship
+        # type is identical to that of label expressions".
+        (label("R") | label("S"), "R|S"),
+        (~label("R"), "!R"),
+        (~label("R") & ~label("S"), "!R&!S"),
+        (ANY_LABEL, "%"),
+        ("R", "R"),
+    ],
+)
+def test_type_expression_rendering(type_term, type_text):
+    # Source: Neo4j Cypher manual 5, Node and relationship patterns -> Label expressions.
+    chain = node("Person").relationship_to(node("Movie"), type_term)
+    assert _render_match(chain) == f"MATCH (:Person)-[:{type_text}]->(:Movie) RETURN 1"
+
+
+def test_label_expression_renders_one_line_in_pretty_mode():
+    pattern = node(label("Movie") | label("Person"), name="n")
+    statement = match(pattern).returning(pattern["title"])
+    rendered = Renderer.get(Configuration(server_version="5.26", pretty_print=True)).render(statement)
+
+    assert rendered.cypher == "MATCH (n:Movie|Person) RETURN n.title"
+
+
+def test_a_label_expression_stays_inline_when_pretty_breaks_the_statement():
+    pattern = node(label("Movie") | label("Person"), name="n")
+    statement = match(pattern).returning(
+        pattern["title"],
+        pattern["released"],
+        pattern["rating"],
+        pattern["tagline"],
+        pattern["runtime"],
+        pattern["overview"],
+        pattern["budget"],
+        pattern["revenue"],
+        pattern["homepage"],
+        pattern["imdb_id"],
+    )
+    lines = Renderer.get(Configuration(server_version="5.26", pretty_print=True)).render(statement).cypher.splitlines()
+
+    assert lines[0] == "MATCH (n:Movie|Person)"
+    assert not any("Movie | Person" in line for line in lines)
+
+
+def test_label_expression_escapes_names():
+    pattern = node(label("A B") | label("C"))
+    rendered = _render_match(pattern)
+
+    assert "`A B`" in rendered
+
+
+def test_label_expression_backticks_every_name_when_forced():
+    pattern = node(label("A") & label("B"))
+    rendered = (
+        Renderer.get(Configuration(server_version="5.26", always_escape_names=True))
+        .render(match(pattern).returning(lit(1)))
+        .cypher
+    )
+
+    assert ":`A`&`B`" in rendered

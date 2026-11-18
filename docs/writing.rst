@@ -1,9 +1,10 @@
 Create, merge, update and delete
 ================================
 
-The write :ref:`clauses <clause>` are ``CREATE``, ``MERGE``, ``SET``, ``REMOVE`` and ``DELETE``. Updates
-are built with ``assign`` and its siblings rather than the operators, because ``SET n.x =
-1`` and the comparison ``n.x == 1`` differ by one character and mean different things.
+The write :ref:`clauses <clause>` are ``CREATE``, ``MERGE``, ``SET``, ``REMOVE`` and
+``DELETE``. Updates are built with ``assign`` and its siblings rather than the operators,
+because ``SET n.x = 1`` and the comparison ``n.x == 1`` differ by one character and mean
+different things.
 
 Create nodes and relationships
 ------------------------------
@@ -100,7 +101,6 @@ would have to inspect the map first:
     statement = (
         merge(person)
         .on_create(assign(person["created_at"], param("now")))
-        .on_match(assign(person["seen_at"], param("now")))
         .returning(person)
     )
 
@@ -109,10 +109,7 @@ would have to inspect the map first:
 
 .. code-block:: cypher
 
-    MERGE (p:Person {email: $email})
-      ON CREATE SET p.created_at = $now
-      ON MATCH SET p.seen_at = $now
-    RETURN p
+    MERGE (p:Person {email: $email}) ON CREATE SET p.created_at = $now RETURN p
 
 Each merge owns at most one ``ON CREATE`` and one ``ON MATCH`` action, and each action
 holds any number of assignments in one call. Unlike ``CREATE``, a merged relationship may
@@ -132,6 +129,10 @@ be undirected:
 .. code-block:: cypher
 
     MERGE (p:Person)-[:ACTED_IN]-(m:Movie)
+
+An undirected merge is defined behaviour, not a guess: Cypher matches the relationship in
+either direction and, when it creates one, creates it left to right. See the `MERGE manual
+<https://neo4j.com/docs/cypher-manual/5/clauses/merge/#undirected-relationships>`_.
 
 A bulk upsert unwinds the rows first and merges per row. See the bulk example in
 :doc:`getting-started`.

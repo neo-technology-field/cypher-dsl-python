@@ -237,9 +237,9 @@ def test_create_rejects_an_undirected_relationship():
 def test_create_rejects_a_relationship_without_a_type():
     person = node("Person", name="a")
     other = node("Person", name="b")
-    hop = Relationship(person, other, RelationshipDirection.OUTGOING)
+    relationship = Relationship(person, other, RelationshipDirection.OUTGOING)
     with pytest.raises(DslError, match="relationship type"):
-        CreateClause((RelationshipPattern((hop,)),))
+        CreateClause((RelationshipPattern((relationship,)),))
 
 
 def test_merge_keeps_undirected_relationship_support():
@@ -358,12 +358,14 @@ def test_create_rejects_conflicting_declarations_in_the_same_clause():
 
 
 @pytest.mark.parametrize("direct", [False, True])
-@pytest.mark.parametrize("multi_hop", [False, True])
-def test_merge_requires_a_type_on_every_relationship(direct, multi_hop):
+@pytest.mark.parametrize("two_relationships", [False, True])
+def test_merge_requires_a_type_on_every_relationship(direct, two_relationships):
     first, second, third = (node("Person", name=value) for value in ("a", "b", "c"))
-    untyped = Relationship(second if multi_hop else first, third, RelationshipDirection.OUTGOING)
-    hops = (first.relationship_to(second, "KNOWS").relationships[0], untyped) if multi_hop else (untyped,)
-    pattern = RelationshipPattern(hops)
+    untyped = Relationship(second if two_relationships else first, third, RelationshipDirection.OUTGOING)
+    relationships = (
+        (first.relationship_to(second, "KNOWS").relationships[0], untyped) if two_relationships else (untyped,)
+    )
+    pattern = RelationshipPattern(relationships)
     with pytest.raises(DslError, match=r"MERGE.*type"):
         MergeClause(pattern) if direct else merge(pattern)
 
@@ -376,7 +378,7 @@ def test_untyped_match_and_typed_undirected_merge_remain_valid():
 
 
 @pytest.mark.parametrize("operation", ["create", "merge"])
-def test_a_write_hop_may_leave_the_relationship_variable_out(operation):
+def test_a_write_relationship_may_leave_the_variable_out(operation):
     person, other = node("Person", name="a"), node("Person", name="b")
     statement = getattr(match(person), operation)(person.relationship_to(other, "KNOWS"))
     assert render(statement) == f"MATCH (a:Person) {operation.upper()} (a)-[:KNOWS]->(b:Person)"
@@ -535,7 +537,7 @@ def test_upstream_merge_after_match_references_the_bound_node():
 
 
 @pytest.mark.parametrize("operation", ["create", "merge"])
-def test_write_rejects_an_untyped_hop_from_the_factory(operation):
+def test_write_rejects_an_untyped_relationship_from_the_factory(operation):
     person = node("Person", name="p")
     other = node("Person", name="q")
     with pytest.raises(DslError, match=rf"{operation.upper()} relationships need exactly one"):

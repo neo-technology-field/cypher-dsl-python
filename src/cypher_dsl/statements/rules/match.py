@@ -56,8 +56,8 @@ class MatchRule(SemanticRule):
                     reject_reserved_redeclaration(variable.value)
             if not isinstance(pattern, RelationshipPattern):
                 continue
-            for hop in pattern.relationships:
-                variable = hop.variable
+            for relationship in pattern.relationships:
+                variable = relationship.variable
                 if variable is None or variable.value not in frame.reserved:
                     continue
                 if variable.value in declarations or reserved_name_conflict(frame, variable.value):

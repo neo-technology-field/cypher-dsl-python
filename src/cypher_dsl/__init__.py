@@ -6,6 +6,7 @@ export fails at import time in a test rather than later as a missing attribute.
 """
 
 from cypher_dsl.api import (
+    ANY_LABEL,
     asc,
     assign,
     asterisk,
@@ -21,6 +22,7 @@ from cypher_dsl.api import (
     ends_with,
     fn,
     in_,
+    label,
     list_,
     lit,
     map_,
@@ -92,6 +94,7 @@ from cypher_dsl.statements.builder import StatementBuilder
 from cypher_dsl.statements.composition import Statement, UnionStatement
 
 __all__ = [
+    "ANY_LABEL",
     "UNBOUND",
     "AliasedExpression",
     "Assignment",
@@ -165,6 +168,7 @@ __all__ = [
     "fn",
     "freeze_value",
     "in_",
+    "label",
     "list_",
     "lit",
     "map_",
