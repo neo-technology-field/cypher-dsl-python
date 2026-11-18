@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.path_patterns import PathPatternExpression
-from cypher_dsl.patterns.nodes import NodePattern
+from cypher_dsl.patterns.nodes import NodePattern, _same_node_declaration
 from cypher_dsl.statements.frames import DeclarationRole, ScopeFrame, reference_names
 from cypher_dsl.statements.rules.base import SemanticRule
 from cypher_dsl.statements.rules.patterns import pattern_bindings
@@ -43,7 +43,18 @@ class PathPatternRule(SemanticRule[PathPatternExpression]):
     def pattern_role(
         self, clause: PathPatternExpression, node_pattern: NodePattern, frame: ScopeFrame, state: PatternState
     ) -> DeclarationRole | None:
-        """Declare every node occurrence inside the chain, so it renders with its labels."""
+        """
+        Reference the bound node when the chain restates its declaration exactly.
+
+        Every named node in the chain references a name an earlier clause binds. An
+        exact restatement renders as the bare variable; a differing declaration
+        filters the bound node and renders in full.
+        """
+        if node_pattern.variable is None:
+            return DeclarationRole.DECLARE
+        previous = dict(frame.bindings).get(node_pattern.variable.value)
+        if previous is not None and _same_node_declaration(previous, node_pattern):
+            return DeclarationRole.REFERENCE
         return DeclarationRole.DECLARE
 
 

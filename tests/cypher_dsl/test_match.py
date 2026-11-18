@@ -78,7 +78,7 @@ def test_a_filter_stays_with_the_optional_clause_it_follows():
         .returning(person)
     )
     assert Renderer.get(Configuration(server_version="5.26")).render(query).cypher == (
-        "MATCH (p:Person) OPTIONAL MATCH (p:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000 RETURN p"
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000 RETURN p"
     )
 
 
@@ -87,7 +87,7 @@ def test_multiple_patterns_and_reused_endpoints_render_in_order():
     movie = node("Movie", name="m")
     query = match(person.relationship_to(movie, "ACTED_IN", name="r"), movie).returning(person, movie)
     assert Renderer.get(Configuration(server_version="5.26")).render(query).cypher == (
-        "MATCH (p:Person)-[r:ACTED_IN]->(m:Movie), (m:Movie) RETURN p, m"
+        "MATCH (p:Person)-[r:ACTED_IN]->(m:Movie), (m) RETURN p, m"
     )
 
 

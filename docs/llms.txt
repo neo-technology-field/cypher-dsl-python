@@ -10,7 +10,7 @@
 - [Read and filter data](reading.html): optional matches, conditions, path pattern predicates, functions, projections, ordering and pagination.
 - [Create, merge, update and delete](writing.html): identity merges, SET forms, REMOVE, DELETE and dynamic property names.
 - [Compose query parts and unions](composing.html): WITH as a scope boundary, per-part ordering, UNION and reusing statements.
-- [Call subqueries](subqueries.html): CALL and OPTIONAL CALL, imported variables, batch writes with IN TRANSACTIONS, UNION bodies, existential subqueries with EXISTS.
+- [Call subqueries](subqueries.html): CALL and OPTIONAL CALL, imported variables, batch writes with IN TRANSACTIONS, UNION bodies, subquery expressions with EXISTS, COUNT and COLLECT.
 - [Call procedures](procedures.html): procedure calls with YIELD, aliased columns, filters after YIELD and OPTIONAL CALL.
 
 ## Reference

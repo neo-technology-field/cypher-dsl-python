@@ -189,7 +189,7 @@ def test_reused_named_endpoints_stay_the_same_reference():
     person = node("Person", name="p")
     movie = node("Movie", name="m")
     pattern = person.relationship_to(movie, "ACTED_IN").relationship_to(person, "DIRECTED")
-    assert _pattern(pattern) == "(p:Person)-[:ACTED_IN]->(m:Movie)-[:DIRECTED]->(p:Person)"
+    assert _pattern(pattern) == "(p:Person)-[:ACTED_IN]->(m:Movie)-[:DIRECTED]->(p)"
 
 
 def test_direct_chain_construction_rejects_disagreeing_adjacent_endpoints():

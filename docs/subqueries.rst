@@ -26,7 +26,7 @@ available to the clauses after the call.
 
     MATCH (p:Person)
     CALL (p) {
-      MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title
+      MATCH (p)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title
     }
     RETURN title
 
@@ -103,7 +103,7 @@ way ``OPTIONAL MATCH`` keeps a row without a match.
 
     MATCH (p:Person)
     OPTIONAL CALL (p) {
-      MATCH (p:Person)-[:ACTED_IN]->(m:Movie)
+      MATCH (p)-[:ACTED_IN]->(m:Movie)
       RETURN m.title AS title
     }
     RETURN title
@@ -187,6 +187,10 @@ What the library checks
   Passing an imported variable through a ``WITH`` unchanged is allowed. A ``MATCH``
   pattern can reference a retained import with different labels or properties. These
   filter the bound node rather than declare a new one.
+
+  An exact restatement renders as the bare variable. A differing declaration keeps its
+  labels as a filter, and a label filter reads clearer as ``WHERE p:Manager`` built
+  with :ref:`has_label <label-expression-predicate>`.
 - ``CREATE`` and ``MERGE`` can reference an imported node as a relationship endpoint
   when its declaration matches the bound node. They cannot redeclare it as a standalone
   node. Reference endpoints render only the variable, without labels or properties.
@@ -234,7 +238,7 @@ names the outer query already binds, :ref:`path pattern expressions
 
     MATCH (p:Person)
       WHERE EXISTS {
-        MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
+        MATCH (p)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
       }
     RETURN p.`name`
 
@@ -258,7 +262,7 @@ the rule the ``UNION`` builder applies to branches.
 
     MATCH (p:Person)
     RETURN p.`name`, EXISTS {
-      MATCH (p:Person)-[:HAS_DOG]->(:Dog)
+      MATCH (p)-[:HAS_DOG]->(:Dog)
     } AS keeps_dog
 
 Two limits follow from the scope model. A body ``WITH`` that drops an enclosing name does
@@ -276,6 +280,106 @@ Four checks apply to this construct:
 - The body reads the names it binds itself and the names the enclosing query has bound.
   Where the library knows the enclosing clause's names, a name it has not bound gets the
   usual ``not in scope`` rejection, which names the offender.
+
+.. _count-subquery:
+
+Count the rows of a subquery
+----------------------------
+
+``count_subquery`` builds a ``COUNT { ... }`` subquery expression. Its value is an
+integer, so it compares in ``WHERE``, projects in ``RETURN`` and assigns in ``SET``.
+The body is a read query that sees the enclosing scope without a scope clause, and a
+final ``RETURN`` is optional: its columns are discarded, because the value is the
+number of rows.
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        count_subquery,
+        lit,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    walked = match(person.relationship_to(node("Dog"), "HAS_DOG"))
+    statement = (
+        match(person)
+        .where(count_subquery(walked) > lit(1))
+        .returning(person["name"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+      WHERE COUNT {
+        MATCH (p)-[:HAS_DOG]->(:Dog)
+      } > 1
+    RETURN p.`name`
+
+A pattern element is accepted where the body is one pattern, and the rendered text
+names the ``MATCH`` keyword, as ``exists`` does. The manual's form without the keyword
+is not produced. A union body follows the rule the ``UNION`` builder applies to
+branches. The scope rules and limits are the ones ``EXISTS`` follows above.
+
+.. _collect-subquery:
+
+Collect a subquery into a list
+------------------------------
+
+``collect_subquery`` builds a ``COLLECT { ... }`` subquery expression. Its value is a
+list with one element per body row. Every branch must end in a ``RETURN`` projecting
+exactly one column, so a body without one is rejected when the expression is built.
+The body sees the enclosing scope without a scope clause, like the other subquery
+expressions.
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        collect_subquery,
+        in_,
+        lit,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    dog = node("Dog", name="d")
+    dogs = match(person.relationship_to(dog, "HAS_DOG")).returning(dog["name"])
+    statement = (
+        match(person)
+        .where(in_(lit("Ozzy"), collect_subquery(dogs)))
+        .returning(person["name"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+      WHERE 'Ozzy' IN COLLECT {
+        MATCH (p)-[:HAS_DOG]->(d:Dog) RETURN d.`name`
+      }
+    RETURN p.`name`
+
+Three checks apply to both constructs, and ``COLLECT`` adds a fourth:
+
+- The body must not write. ``CREATE``, ``MERGE``, ``SET``, ``REMOVE``, ``DELETE`` and
+  ``IN TRANSACTIONS`` are rejected, including inside a nested call body.
+- The body reads the names it binds itself and the names the enclosing query has
+  bound, without imports. Where the library knows the enclosing clause's names, a name
+  it has not bound gets the usual ``not in scope`` rejection.
+- The names the body binds do not become available outside the expression.
+- A ``COLLECT`` body needs ``RETURN`` in every branch, with exactly one column;
+  ``RETURN *`` is rejected because its column count depends on the scope.
 
 Calling procedures
 ------------------

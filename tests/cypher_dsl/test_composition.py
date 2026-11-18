@@ -66,7 +66,7 @@ def test_a_read_composes_matching_parts_around_a_with_boundary():
     )
     assert Renderer.get(Configuration(server_version="5.26")).render(query).cypher == (
         "MATCH (p:Person) WITH p "
-        "MATCH (p:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000 "
+        "MATCH (p)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000 "
         "RETURN p.given, m.title ORDER BY m.released DESC LIMIT 10"
     )
 
@@ -82,7 +82,7 @@ def test_optional_match_after_with_keeps_its_own_filter():
         .returning(person, movie)
     )
     assert Renderer.get(Configuration(server_version="5.26")).render(query).cypher == (
-        "MATCH (p:Person) WITH p OPTIONAL MATCH (p:Person)-[d:DIRECTED]->(m:Movie) WHERE m.released > 2000 RETURN p, m"
+        "MATCH (p:Person) WITH p OPTIONAL MATCH (p)-[d:DIRECTED]->(m:Movie) WHERE m.released > 2000 RETURN p, m"
     )
 
 

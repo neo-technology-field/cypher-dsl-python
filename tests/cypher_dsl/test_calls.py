@@ -419,7 +419,7 @@ def test_correlated_match_may_reuse_an_imported_node_declaration(reuse_object: b
     body = match(imported.relationship_to(MOVIE, "ACTED_IN")).returning(MOVIE["title"].alias("title")).build()
     query = match(PERSON).call(body, imports=("p",)).returning(name("title"))
     assert RENDERER.render(query).cypher == (
-        "MATCH (p:Person) CALL (p) { MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title } RETURN title"
+        "MATCH (p:Person) CALL (p) { MATCH (p)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title } RETURN title"
     )
 
 

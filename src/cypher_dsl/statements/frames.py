@@ -61,8 +61,8 @@ class DeclarationRole(Enum):
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)
-class WriteDeclaration:
-    """Classification of one node pattern occurrence in a write clause."""
+class PatternDeclaration:
+    """Classification of one node pattern occurrence in a pattern-holding clause."""
 
     node: NodePattern
     role: DeclarationRole
@@ -150,9 +150,9 @@ __all__ = [
     "DeclarationRole",
     "NoFacts",
     "NodePatternFacts",
+    "PatternDeclaration",
     "ScopeFrame",
     "SyntaxRequirement",
-    "WriteDeclaration",
     "free_variables_in",
     "is_unresolved_node",
     "merge_names",

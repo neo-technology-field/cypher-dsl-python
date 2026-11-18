@@ -52,7 +52,7 @@ def test_wraps_a_pattern_element_in_a_match_body() -> None:
     rendered = Renderer.get(Configuration(server_version="5.26")).render(
         match(PERSON).where(expression).returning(PERSON["name"])
     )
-    assert rendered.cypher == ("MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(:Dog) } RETURN p.`name`")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE EXISTS { MATCH (p)-[:HAS_DOG]->(:Dog) } RETURN p.`name`")
 
 
 def test_rejects_an_unsupported_input() -> None:
@@ -219,8 +219,7 @@ def test_renders_in_a_where_clause() -> None:
     body = match(PERSON.relationship_to(DOG, "HAS_DOG")).where(DOG["name"] == param("dog_name"))
     statement = match(PERSON).where(exists(body)).returning(PERSON["name"])
     assert _rendered(statement).cypher == (
-        "MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name }"
-        " RETURN p.`name`"
+        "MATCH (p:Person) WHERE EXISTS { MATCH (p)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name } RETURN p.`name`"
     )
 
 
@@ -228,7 +227,7 @@ def test_renders_a_bare_pattern_body() -> None:
     keeps_dog = exists(PERSON.relationship_to(node("Dog"), "HAS_DOG"))
     statement = match(PERSON).returning(PERSON["name"], keeps_dog.alias("keeps_dog"))
     assert _rendered(statement).cypher == (
-        "MATCH (p:Person) RETURN p.`name`, EXISTS { MATCH (p:Person)-[:HAS_DOG]->(:Dog) } AS keeps_dog"
+        "MATCH (p:Person) RETURN p.`name`, EXISTS { MATCH (p)-[:HAS_DOG]->(:Dog) } AS keeps_dog"
     )
 
 
@@ -236,7 +235,7 @@ def test_combines_with_boolean_operators() -> None:
     body = match(PERSON.relationship_to(DOG, "HAS_DOG"))
     statement = match(PERSON).where(~exists(body) & (PERSON["age"] > 30)).returning(PERSON["name"])
     assert _rendered(statement).cypher == (
-        "MATCH (p:Person) WHERE NOT EXISTS { MATCH (p:Person)-[:HAS_DOG]->(d:Dog) } AND p.age > 30 RETURN p.`name`"
+        "MATCH (p:Person) WHERE NOT EXISTS { MATCH (p)-[:HAS_DOG]->(d:Dog) } AND p.age > 30 RETURN p.`name`"
     )
 
 
@@ -244,7 +243,7 @@ def test_renders_as_a_comparison_operand() -> None:
     body = match(PERSON.relationship_to(DOG, "HAS_DOG"))
     statement = match(PERSON).where(exists(body) == lit(True)).returning(PERSON["name"])
     assert _rendered(statement).cypher == (
-        "MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(d:Dog) } = true RETURN p.`name`"
+        "MATCH (p:Person) WHERE EXISTS { MATCH (p)-[:HAS_DOG]->(d:Dog) } = true RETURN p.`name`"
     )
 
 
@@ -255,8 +254,8 @@ def test_renders_a_union_body() -> None:
     )
     statement = match(PERSON).where(exists(body)).returning(PERSON["name"])
     assert _rendered(statement).cypher == (
-        "MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(:Dog)"
-        " UNION MATCH (p:Person)-[:HAS_CAT]->(:Cat) } RETURN p.`name`"
+        "MATCH (p:Person) WHERE EXISTS { MATCH (p)-[:HAS_DOG]->(:Dog)"
+        " UNION MATCH (p)-[:HAS_CAT]->(:Cat) } RETURN p.`name`"
     )
 
 
@@ -275,7 +274,7 @@ def test_pretty_print_breaks_the_body_out() -> None:
     assert _rendered(statement, pretty=True).cypher == (
         "MATCH (p:Person)\n"
         "  WHERE EXISTS {\n"
-        "    MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name\n"
+        "    MATCH (p)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name\n"
         "  }\n"
         "RETURN p.`name`"
     )
@@ -286,7 +285,7 @@ def test_pretty_print_breaks_an_exists_projection() -> None:
     statement = match(PERSON).returning(PERSON["uid"], exists(body).alias("keeps_dog"))
     rendered = _rendered(statement, pretty=True)
     assert rendered.cypher == (
-        "MATCH (p:Person)\nRETURN p.uid, EXISTS {\n  MATCH (p:Person)-[:HAS_DOG]->(d:Dog)\n} AS keeps_dog"
+        "MATCH (p:Person)\nRETURN p.uid, EXISTS {\n  MATCH (p)-[:HAS_DOG]->(d:Dog)\n} AS keeps_dog"
     )
 
 
@@ -298,7 +297,7 @@ def test_pretty_print_breaks_a_union_that_holds_an_exists() -> None:
     assert _rendered(statement, pretty=True).cypher == (
         "MATCH (p:Person)\n"
         "  WHERE EXISTS {\n"
-        "    MATCH (p:Person)-[:HAS_DOG]->(:Dog)\n"
+        "    MATCH (p)-[:HAS_DOG]->(:Dog)\n"
         "  }\n"
         "RETURN p.uid\n"
         "UNION\n"

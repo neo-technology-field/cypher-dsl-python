@@ -42,7 +42,7 @@ from cypher_dsl import (
 from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.clauses.projection import ProjectionClause
 from cypher_dsl.errors import DslError
-from cypher_dsl.expressions.subqueries import ExistsExpression
+from cypher_dsl.expressions.subqueries import CollectExpression, CountExpression, ExistsExpression, SubqueryExpression
 from cypher_dsl.patterns.labels import ANY_LABEL, LabelExpression, label
 from cypher_dsl.render.expressions import expression_bindings
 from cypher_dsl.render.filters import filter_bindings
@@ -283,7 +283,17 @@ def test_element_id_renders_through_rules() -> None:
 
 
 def test_shared_bindings_render_every_concrete_grammar_node() -> None:
-    abstract_bases = {Clause, Condition, Expression, LabelExpression, PatternElement, ProjectionClause}
+    # A family base is abstract, and the subquery-expression base cannot be constructed standalone,
+    # so only concrete subclasses are renderable roots.
+    abstract_bases = {
+        Clause,
+        Condition,
+        Expression,
+        LabelExpression,
+        PatternElement,
+        ProjectionClause,
+        SubqueryExpression,
+    }
 
     def subclasses(parent: type[AstNode]) -> set[type[AstNode]]:
         found: set[type[AstNode]] = set()
@@ -308,6 +318,8 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         ~(name("a") > 1),
         condition(name("flag")),
         ExistsExpression(match(person).returning(person).build()),
+        CountExpression(match(person).returning(person).build()),
+        CollectExpression(match(person).returning(person["uid"]).build()),
         name("n")[param("key")],
         list_(name("n"), 2),
         map_({"uid": name("n")}),

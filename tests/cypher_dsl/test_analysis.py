@@ -111,11 +111,11 @@ def test_anonymous_write_pattern_does_not_consume_named_declarations() -> None:
     assert analysis.facts_for((0, 2)) == NodePatternFacts(DeclarationRole.DECLARE)
 
 
-def test_match_node_is_a_declaration_even_when_the_name_appeared_before() -> None:
+def test_match_node_restating_a_carried_binding_is_a_reference() -> None:
     person = node("Person", name="p")
     analysis = analyse(match(person).with_("p").match(person).returning("p").build())
     roles = [facts.role for facts in analysis.facts.values() if isinstance(facts, NodePatternFacts)]
-    assert roles == [DeclarationRole.DECLARE, DeclarationRole.DECLARE]
+    assert roles == [DeclarationRole.DECLARE, DeclarationRole.REFERENCE]
 
 
 def test_dynamic_property_writes_are_recorded_only_for_update_targets() -> None:

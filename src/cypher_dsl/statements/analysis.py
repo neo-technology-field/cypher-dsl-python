@@ -16,9 +16,9 @@ from cypher_dsl.statements.frames import (
     DeclarationRole,
     NodePatternFacts,
     NoFacts,
+    PatternDeclaration,
     ScopeFrame,
     SyntaxRequirement,
-    WriteDeclaration,
 )
 from cypher_dsl.statements.rules import PatternState, SemanticRules, semantic_rules
 from cypher_dsl.statements.rules.base import AnalysisSink
@@ -89,18 +89,17 @@ class _SemanticVisitor(_Visitor):
             contribution = 0
             if parent is None:
                 seed = ScopeFrame((), certified=True)
+                if isinstance(node, UnionStatement):
+                    union_columns_check(node.parts, seed)
             else:
                 parent_rule = self._rules.resolve(parent)
                 seed = parent_rule.enter_body(self._frames[-1], parent)
                 if parent_rule.validates_body:
                     contribution = 1
+                if isinstance(node, UnionStatement):
+                    parent_rule.check_union(node.parts, seed)
             self._body_depth_contributions.append(contribution)
             self._body_validation_depth += contribution
-            if isinstance(node, UnionStatement):
-                if parent is None:
-                    union_columns_check(node.parts, seed)
-                else:
-                    parent_rule.check_union(node.parts, seed)
             self._frames.append(seed)
         rule = self._rules.resolve(node) if isinstance(node, Clause) else self._rules.find(node)
         if rule is not None:
@@ -109,7 +108,7 @@ class _SemanticVisitor(_Visitor):
             rule.record(node, self._frames[-1], AnalysisSink(self._facts, self._requirements, self._path[-1]))
         if isinstance(node, Clause):
             self._clauses.append(node)
-            self._clause_states.append(PatternState())
+            self._clause_states.append(PatternState(self._frames[-1]))
             self._frames.append(self._rules.resolve(node).expression_scope(self._frames[-1], node))
         self._nodes.append(node)
 
@@ -175,7 +174,7 @@ __all__ = [
     "DeclarationRole",
     "NoFacts",
     "NodePatternFacts",
+    "PatternDeclaration",
     "SyntaxRequirement",
-    "WriteDeclaration",
     "analyse",
 ]

@@ -66,7 +66,7 @@ def test_renders_the_cheat_sheet_example() -> None:
     works_for = PERSON.relationship_to(node("Person", properties={"uid": lit("p1")}), "WORKS_FOR")
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'}) RETURN p.uid")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person {uid: 'p1'}) RETURN p.uid")
 
 
 def test_renders_every_direction() -> None:
@@ -84,35 +84,29 @@ def test_renders_every_direction() -> None:
         .where(path_pattern(PERSON.relationship_with(node("Person"), "WORKS_FOR")))
         .returning(PERSON["uid"])
     )
-    assert renderer.render(outgoing).cypher == (
-        "MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person) RETURN p.uid"
-    )
-    assert renderer.render(incoming).cypher == (
-        "MATCH (p:Person) WHERE (p:Person)<-[:WORKS_FOR]-(:Person) RETURN p.uid"
-    )
-    assert renderer.render(undirected).cypher == (
-        "MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]-(:Person) RETURN p.uid"
-    )
+    assert renderer.render(outgoing).cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person) RETURN p.uid")
+    assert renderer.render(incoming).cypher == ("MATCH (p:Person) WHERE (p)<-[:WORKS_FOR]-(:Person) RETURN p.uid")
+    assert renderer.render(undirected).cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]-(:Person) RETURN p.uid")
 
 
 def test_renders_an_untyped_relationship() -> None:
     statement = match(PERSON).where(path_pattern(PERSON.relationship_to(node("Person")))).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == "MATCH (p:Person) WHERE (p:Person)-->(:Person) RETURN p.uid"
+    assert rendered.cypher == "MATCH (p:Person) WHERE (p)-->(:Person) RETURN p.uid"
 
 
 def test_renders_a_type_expression() -> None:
     types = label("ACTED_IN") | label("DIRECTED")
     statement = match(PERSON).where(path_pattern(PERSON.relationship_to(node("Movie"), types))).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) WHERE (p:Person)-[:ACTED_IN|DIRECTED]->(:Movie) RETURN p.uid")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:ACTED_IN|DIRECTED]->(:Movie) RETURN p.uid")
 
 
 def test_renders_relationship_details() -> None:
     works_for = PERSON.relationship_to(node("Person"), "WORKS_FOR", properties={"since": param("year", 2015)})
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR {since: $year}]->(:Person) RETURN p.uid")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR {since: $year}]->(:Person) RETURN p.uid")
     assert rendered.parameters == {"year": 2015}
 
 
@@ -120,27 +114,21 @@ def test_reuses_the_match_pattern_object() -> None:
     report = PERSON.relationship_to(MANAGER, "WORKS_FOR", name="r")
     statement = match(report).where(path_pattern(report)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == (
-        "MATCH (p:Person)-[r:WORKS_FOR]->(m:Person) WHERE (p:Person)-[r:WORKS_FOR]->(m:Person) RETURN p.uid"
-    )
+    assert rendered.cypher == ("MATCH (p:Person)-[r:WORKS_FOR]->(m:Person) WHERE (p)-[r:WORKS_FOR]->(m) RETURN p.uid")
 
 
 def test_combines_with_other_predicates() -> None:
     works_for = PERSON.relationship_to(node("Person"), "WORKS_FOR")
     statement = match(PERSON).where(~path_pattern(works_for) & (PERSON["age"] > 30)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == (
-        "MATCH (p:Person) WHERE NOT (p:Person)-[:WORKS_FOR]->(:Person) AND p.age > 30 RETURN p.uid"
-    )
+    assert rendered.cypher == ("MATCH (p:Person) WHERE NOT (p)-[:WORKS_FOR]->(:Person) AND p.age > 30 RETURN p.uid")
 
 
 def test_quotes_a_reserved_map_key() -> None:
     works_for = PERSON.relationship_to(node("Person", properties={"name": lit("Alice")}), "WORKS_FOR")
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == (
-        "MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {`name`: 'Alice'}) RETURN p.uid"
-    )
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person {`name`: 'Alice'}) RETURN p.uid")
 
 
 def test_quotes_every_identifier_when_requested() -> None:
@@ -148,7 +136,7 @@ def test_quotes_every_identifier_when_requested() -> None:
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26", always_escape_names=True)).render(statement)
     assert rendered.cypher == (
-        "MATCH (`p`:`Person`) WHERE (`p`:`Person`)-[:`WORKS_FOR`]->(:`Person` {`uid`: 'p1'}) RETURN `p`.`uid`"
+        "MATCH (`p`:`Person`) WHERE (`p`)-[:`WORKS_FOR`]->(:`Person` {`uid`: 'p1'}) RETURN `p`.`uid`"
     )
 
 
@@ -156,7 +144,7 @@ def test_pretty_keeps_a_short_predicate_on_one_line() -> None:
     works_for = PERSON.relationship_to(node("Person"), "WORKS_FOR")
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26", pretty_print=True)).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person) RETURN p.uid")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person) RETURN p.uid")
 
 
 def test_pretty_puts_a_long_predicate_on_its_own_line() -> None:
@@ -169,7 +157,7 @@ def test_pretty_puts_a_long_predicate_on_its_own_line() -> None:
     rendered = Renderer.get(Configuration(server_version="5.26", pretty_print=True)).render(statement)
     assert rendered.cypher == (
         "MATCH (p:Person)\n"
-        "  WHERE (p:Person)-[:WORKS_FOR {since: $year}]->(:Person {uid: 'p1'})"
+        "  WHERE (p)-[:WORKS_FOR {since: $year}]->(:Person {uid: 'p1'})"
         "-[:REPORTS_TO]->(:Person {uid: 'p2'})\n"
         "RETURN p.uid"
     )
@@ -217,7 +205,7 @@ def test_tolerates_an_unprovable_name_in_an_open_frame() -> None:
     works_for = PERSON.relationship_to(node("Person", name="q"), "WORKS_FOR")
     statement = match(PERSON).where(path_pattern(works_for)).returning(PERSON["uid"])
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(q:Person) RETURN p.uid")
+    assert rendered.cypher == ("MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(q:Person) RETURN p.uid")
 
 
 def test_records_no_requirements() -> None:
@@ -244,7 +232,7 @@ def test_renders_under_a_procedure_filter() -> None:
     )
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
     assert rendered.cypher == (
-        "MATCH (p:Person) CALL db.labels() YIELD `label` WHERE (p:Person)-[:WORKS_FOR]->(:Person) RETURN p.uid"
+        "MATCH (p:Person) CALL db.labels() YIELD `label` WHERE (p)-[:WORKS_FOR]->(:Person) RETURN p.uid"
     )
 
 
@@ -270,4 +258,4 @@ def test_projects_the_negated_form() -> None:
     works_for = PERSON.relationship_to(node("Person"), "WORKS_FOR")
     statement = match(PERSON).returning((~path_pattern(works_for)).alias("alone"))
     rendered = Renderer.get(Configuration(server_version="5.26")).render(statement)
-    assert rendered.cypher == ("MATCH (p:Person) RETURN NOT (p:Person)-[:WORKS_FOR]->(:Person) AS alone")
+    assert rendered.cypher == ("MATCH (p:Person) RETURN NOT (p)-[:WORKS_FOR]->(:Person) AS alone")

@@ -13,9 +13,11 @@ from cypher_dsl.api import (
     boolean_operation,
     call,
     call_procedure,
+    collect_subquery,
     condition,
     contains,
     count,
+    count_subquery,
     create,
     desc,
     element_id,
@@ -78,7 +80,7 @@ from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, Condition, UnaryOperation
 from cypher_dsl.expressions.path_patterns import PathPatternExpression
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
-from cypher_dsl.expressions.subqueries import ExistsExpression
+from cypher_dsl.expressions.subqueries import CollectExpression, CountExpression, ExistsExpression, SubqueryExpression
 from cypher_dsl.expressions.values import (
     UNBOUND,
     AliasedExpression,
@@ -110,9 +112,11 @@ __all__ = [
     "Asterisk",
     "BinaryOperation",
     "Clause",
+    "CollectExpression",
     "Comparison",
     "Condition",
     "Configuration",
+    "CountExpression",
     "CreateClause",
     "DeleteClause",
     "ElementId",
@@ -155,6 +159,7 @@ __all__ = [
     "Statement",
     "StatementBuilder",
     "SubqueryCallClause",
+    "SubqueryExpression",
     "SubscriptExpression",
     "SymbolicName",
     "UnaryOperation",
@@ -170,9 +175,11 @@ __all__ = [
     "boolean_operation",
     "call",
     "call_procedure",
+    "collect_subquery",
     "condition",
     "contains",
     "count",
+    "count_subquery",
     "create",
     "desc",
     "element_id",

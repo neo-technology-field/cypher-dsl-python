@@ -436,7 +436,7 @@ def test_write_roles_distinguish_reused_node_occurrences_and_anonymous_nodes() -
     anonymous = node("Clone")
     clause = CreateClause((person.relationship_to(person, "COPIED_AS"), anonymous))
     rule = CreateRule()
-    state = PatternState()
+    state = PatternState(ScopeFrame())
     assert rule.pattern_role(clause, person, ScopeFrame(), state) is DeclarationRole.DECLARE
     assert rule.pattern_role(clause, person, ScopeFrame(), state) is DeclarationRole.REFERENCE
     assert rule.pattern_role(clause, anonymous, ScopeFrame(), state) is DeclarationRole.DECLARE

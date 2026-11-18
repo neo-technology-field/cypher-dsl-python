@@ -11,7 +11,7 @@ from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, UnaryOperation, _ConditionOperand
 from cypher_dsl.expressions.path_patterns import PathPatternExpression
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
-from cypher_dsl.expressions.subqueries import ExistsExpression
+from cypher_dsl.expressions.subqueries import SubqueryExpression
 from cypher_dsl.expressions.values import (
     AliasedExpression,
     Literal,
@@ -166,9 +166,9 @@ def sort_item(node: SortItem, children: tuple[Fragment, ...], context: RenderCon
     return context.layout.tokens(children[0].text, node.direction.value)
 
 
-def exists_expression(node: ExistsExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
-    """Render the EXISTS keyword with its subquery body in braces."""
-    return context.layout.body("EXISTS", children[0].text)
+def subquery_expression(node: SubqueryExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render the subquery expression's keyword with its body in braces."""
+    return context.layout.body(node.keyword, children[0].text)
 
 
 def path_pattern_expression(node: PathPatternExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
@@ -198,7 +198,7 @@ def expression_bindings() -> tuple[RuleBinding, ...]:
         bind(Asterisk, asterisk),
         bind(RawExpression, raw_expression),
         bind(SortItem, sort_item),
-        bind(ExistsExpression, exists_expression),
+        bind(SubqueryExpression, subquery_expression),
         bind(PathPatternExpression, path_pattern_expression),
     )
 

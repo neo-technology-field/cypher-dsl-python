@@ -54,7 +54,7 @@ attached after it belongs to the optional match:
 .. code-block:: cypher
 
     MATCH (p:Person)
-    OPTIONAL MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)
+    OPTIONAL MATCH (p)-[r:ACTED_IN]->(m:Movie)
       WHERE m.title = $title
     RETURN p.display_name, m.title
 
@@ -336,7 +336,7 @@ everything a path pattern expression can and more, at the cost of a subquery bod
 .. code-block:: cypher
 
     MATCH (p:Person)
-      WHERE NOT (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'}) AND p.age > 30
+      WHERE NOT (p)-[:WORKS_FOR]->(:Person {uid: 'p1'}) AND p.age > 30
     RETURN p.uid
 
 Every named node and relationship inside the chain must reference a name an earlier

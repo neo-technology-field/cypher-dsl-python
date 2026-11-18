@@ -72,7 +72,7 @@ A later clause can optionally match from a variable an earlier clause bound.
 .. code-block:: cypher
 
     MATCH (p:Person)
-    OPTIONAL MATCH (p:Person)-[:DIRECTED]->(:Movie)
+    OPTIONAL MATCH (p)-[:DIRECTED]->(:Movie)
     RETURN p.display_name
 
 ``WHERE``
@@ -170,7 +170,8 @@ Path pattern expressions
 ``path_pattern`` turns a relationship chain into a boolean: it is true when the chain
 matches at least once. It is a predicate, so ``&``, ``|`` and ``~`` combine it with
 other conditions. Every named node and relationship in the chain must reference a name
-an earlier clause binds; the expression declares none of its own:
+an earlier clause binds; the expression declares none of its own: an exact restatement
+renders as the bare variable.
 
 .. code-block:: python
 
@@ -197,7 +198,7 @@ an earlier clause binds; the expression declares none of its own:
 
 .. code-block:: text
 
-    MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'})
+    MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person {uid: 'p1'})
     RETURN p.uid
 
 A projection item is not a boolean position: project ``~path_pattern(...)`` instead. A
@@ -502,7 +503,7 @@ clause always renders, and ``imports`` or ``import_all`` pass outer names in.
 
     MATCH (p:Person)
     CALL (p) {
-      MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title
+      MATCH (p)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title
     }
     RETURN title
 
@@ -598,11 +599,80 @@ read subquery that sees the enclosing scope without a scope clause.
 
     MATCH (p:Person)
     WHERE EXISTS {
-            MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
+            MATCH (p)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
     }
     RETURN p.`name`
 
 The scope rules, the pattern-element form and the limits are on :doc:`subqueries`.
+
+``COUNT`` and ``COLLECT``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``count_subquery`` and ``collect_subquery`` build the ``COUNT { ... }`` and
+``COLLECT { ... }`` subquery expressions. Both are value expressions that read the
+enclosing scope without a scope clause. ``COUNT`` counts the body's rows and its body
+may end without a ``RETURN``; ``COLLECT`` builds a list and every branch must end in a
+``RETURN`` with exactly one column.
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        count_subquery,
+        lit,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    walked = match(person.relationship_to(node("Dog"), "HAS_DOG"))
+    statement = (
+        match(person)
+        .where(count_subquery(walked) > lit(1))
+        .returning(person["name"])
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: text
+
+    MATCH (p:Person)
+    WHERE COUNT {
+            MATCH (p)-[:HAS_DOG]->(:Dog)
+    } > 1
+    RETURN p.`name`
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        collect_subquery,
+        in_,
+        lit,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    dog = node("Dog", name="d")
+    dogs = match(person.relationship_to(dog, "HAS_DOG")).returning(dog["name"])
+    statement = (
+        match(person)
+        .where(in_(lit("Ozzy"), collect_subquery(dogs)))
+        .returning(person["name"])
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: text
+
+    MATCH (p:Person)
+    WHERE 'Ozzy' IN COLLECT {
+            MATCH (p)-[:HAS_DOG]->(d:Dog) RETURN d.`name`
+    }
+    RETURN p.`name`
 
 Expressions
 -----------
@@ -670,7 +740,6 @@ declaration is too old.
 Not yet
 -------
 
-- ``COUNT { ... }`` and ``COLLECT { ... }`` — subquery expressions.
 - ``SEARCH n IN (VECTOR INDEX idx FOR $v) SCORE AS s``, and the ``FULLTEXT`` variation —
   vector and full-text search.
 - ``CASE WHEN ... THEN ... ELSE ... END`` — a conditional expression.

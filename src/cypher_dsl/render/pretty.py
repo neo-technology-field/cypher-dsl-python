@@ -20,7 +20,7 @@ from cypher_dsl.clauses.base import Clause
 from cypher_dsl.clauses.call import SubqueryCallClause
 from cypher_dsl.clauses.match import Where
 from cypher_dsl.clauses.write import MergeAction
-from cypher_dsl.expressions.subqueries import ExistsExpression
+from cypher_dsl.expressions.subqueries import SubqueryExpression
 from cypher_dsl.render.layout import COMPACT, Layout
 from cypher_dsl.render.rules import RenderingRules
 from cypher_dsl.render.traversal import RenderingTraversal
@@ -138,7 +138,7 @@ class PrettyOccurrence(Layout):
         return f" {keyword} ".join(items)
 
     def body(self, header: str, inner: str) -> str:
-        """Join a subquery header (``CALL`` or ``EXISTS``), its body one level deeper and the closing brace."""
+        """Join a subquery header, its body one level deeper and the closing brace."""
         return f"{header} {{\n{_pad(self.level + 1)}{inner}\n{_pad(self.level)}}}"
 
 
@@ -154,13 +154,15 @@ def _holds_subquery(finalised: Statement | UnionStatement) -> bool:
 
 
 def _holds_body(statement: Statement) -> bool:
-    """Return whether a statement holds a subquery call clause or an ``EXISTS`` expression."""
-    return any(isinstance(clause, SubqueryCallClause) or _holds_exists(clause) for clause in statement.clauses)
+    """Return whether a statement holds a subquery call clause or a subquery expression."""
+    return any(
+        isinstance(clause, SubqueryCallClause) or _holds_subquery_expression(clause) for clause in statement.clauses
+    )
 
 
-def _holds_exists(node: AstNode) -> bool:
-    """Return whether a subtree holds an ``ExistsExpression``."""
-    return isinstance(node, ExistsExpression) or any(_holds_exists(child) for child in node.children())
+def _holds_subquery_expression(node: AstNode) -> bool:
+    """Return whether a subtree holds a subquery expression."""
+    return isinstance(node, SubqueryExpression) or any(_holds_subquery_expression(child) for child in node.children())
 
 
 class _WalkFrame:
@@ -203,7 +205,7 @@ class _DecisionWalk(_Visitor):
         # convenience: a call is a clause that must not inherit the plain-clause settings.
         # Both kinds of subquery body always break their braces and start their own break
         # decision one level deeper.
-        elif isinstance(node, (SubqueryCallClause, ExistsExpression)):
+        elif isinstance(node, (SubqueryCallClause, SubqueryExpression)):
             self._table[path] = PrettyOccurrence(True, level)
             self._frames.append(_WalkFrame(path, False, level + 1))
         elif isinstance(node, (MergeAction, Where)):

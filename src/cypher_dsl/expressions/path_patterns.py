@@ -74,7 +74,7 @@ def path_pattern(pattern: RelationshipPattern) -> PathPatternExpression:
         pattern: The relationship chain the expression tests.
 
     Returns:
-        A predicate usable wherever a condition is.
+        The path pattern expression.
 
     Raises:
         DslError: If the input is a node pattern, which is a label predicate in

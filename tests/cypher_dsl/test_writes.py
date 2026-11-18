@@ -164,7 +164,7 @@ def test_a_match_cannot_follow_a_write_without_a_with_boundary():
     with pytest.raises(InvalidClauseOrderError):
         create(person).match(movie)
     query = create(person).with_(person).match(person.relationship_to(movie, "LIKES", name="r")).returning(person)
-    assert render(query) == "CREATE (p:Person) WITH p MATCH (p:Person)-[r:LIKES]->(m:Movie) RETURN p"
+    assert render(query) == "CREATE (p:Person) WITH p MATCH (p)-[r:LIKES]->(m:Movie) RETURN p"
 
 
 def test_union_branches_do_not_share_bound_node_state():

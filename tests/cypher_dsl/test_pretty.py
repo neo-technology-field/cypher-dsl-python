@@ -178,7 +178,7 @@ def test_a_union_whose_branch_holds_a_call_breaks() -> None:
     assert RENDERER.render(statement).cypher == (
         "MATCH (p:Person)\n"
         "CALL (p) {\n"
-        "  MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title\n"
+        "  MATCH (p)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title\n"
         "}\n"
         "RETURN title\n"
         "UNION\n"
@@ -214,11 +214,7 @@ def test_a_call_breaks_its_braces_even_when_the_statement_fits() -> None:
     body = match(person.relationship_to(movie, "ACTED_IN")).returning(movie["title"].alias("title")).build()
     statement = match(person).call(body, imports=("p",)).returning(name("title"))
     assert RENDERER.render(statement).cypher == (
-        "MATCH (p:Person)\n"
-        "CALL (p) {\n"
-        "  MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title\n"
-        "}\n"
-        "RETURN title"
+        "MATCH (p:Person)\nCALL (p) {\n  MATCH (p)-[:ACTED_IN]->(m:Movie) RETURN m.title AS title\n}\nRETURN title"
     )
 
 
@@ -241,7 +237,7 @@ def test_a_call_body_that_overflows_renders_clause_per_line() -> None:
     assert RENDERER.render(statement).cypher == (
         "MATCH (p:Person)\n"
         "CALL (p) {\n"
-        "  MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)\n"
+        "  MATCH (p)-[r:ACTED_IN]->(m:Movie)\n"
         "    WHERE m.released > $since\n"
         "  RETURN p.display_name AS actor, m.title, p.rating, m.released\n"
         "}\n"

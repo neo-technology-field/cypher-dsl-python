@@ -20,14 +20,13 @@ from cypher_dsl.statements.rules.match import MatchRule
 from cypher_dsl.statements.rules.path_patterns import PathPatternRule
 from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 from cypher_dsl.statements.rules.projection import ProjectionRule
-from cypher_dsl.statements.rules.subqueries import CallRule, ExistsRule
+from cypher_dsl.statements.rules.subqueries import CallRule, SubqueryExpressionRule
 from cypher_dsl.statements.rules.writes import CreateRule, DeleteRule, MergeRule, RemoveRule, SetRule
 
 __all__ = [
     "CallRule",
     "CreateRule",
     "DeleteRule",
-    "ExistsRule",
     "IsLabeledRule",
     "MatchRule",
     "MergeRule",
@@ -39,6 +38,7 @@ __all__ = [
     "SemanticRule",
     "SemanticRules",
     "SetRule",
+    "SubqueryExpressionRule",
     "UnionRule",
     "UnwindRule",
     "check_references",
@@ -61,14 +61,17 @@ def shared_rules() -> dict[type, SemanticRule[Any]]:
     from cypher_dsl.clauses.write import CreateClause, DeleteClause, MergeClause, RemoveClause, SetClause
     from cypher_dsl.expressions.labels import IsLabeled
     from cypher_dsl.expressions.path_patterns import PathPatternExpression
-    from cypher_dsl.expressions.subqueries import ExistsExpression
+    from cypher_dsl.expressions.subqueries import CollectExpression, CountExpression, ExistsExpression
     from cypher_dsl.statements.composition import UnionStatement
 
     projection = ProjectionRule()
+    subquery_expressions = SubqueryExpressionRule()
     return {
+        CollectExpression: subquery_expressions,
+        CountExpression: subquery_expressions,
         CreateClause: CreateRule(),
         DeleteClause: DeleteRule(),
-        ExistsExpression: ExistsRule(),
+        ExistsExpression: subquery_expressions,
         # The label predicate is a non-clause rule: it records a capability
         # requirement rather than frame bindings.
         IsLabeled: IsLabeledRule(),

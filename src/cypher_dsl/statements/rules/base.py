@@ -12,9 +12,9 @@ from cypher_dsl.patterns.nodes import NodePattern
 from cypher_dsl.registry import TypeRegistry
 from cypher_dsl.statements.frames import (
     DeclarationRole,
+    PatternDeclaration,
     ScopeFrame,
     SyntaxRequirement,
-    WriteDeclaration,
     free_variables_in,
 )
 
@@ -93,12 +93,13 @@ class SemanticRule(Generic[TNode]):
 
 
 class PatternState:
-    """Cached write classification for one clause occurrence."""
+    """Cached pattern classification and the incoming frame for one clause occurrence."""
 
-    __slots__ = ("declarations", "next_declaration")
+    __slots__ = ("declarations", "incoming", "next_declaration")
 
-    def __init__(self) -> None:
-        self.declarations: tuple[WriteDeclaration, ...] | None = None
+    def __init__(self, incoming: ScopeFrame) -> None:
+        self.incoming = incoming
+        self.declarations: tuple[PatternDeclaration, ...] | None = None
         self.next_declaration: int = 0
 
 

@@ -58,7 +58,7 @@ class Layout:
         return f" {keyword} ".join(parts)
 
     def body(self, header: str, inner: str) -> str:
-        """Join a subquery header (``CALL`` or ``EXISTS``), its body statement and the closing brace."""
+        """Join a subquery header, its body statement and the closing brace."""
         return f"{header} {{ {inner} }}"
 
 

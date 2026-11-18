@@ -143,8 +143,7 @@ def test_optional_relationship_filtering_stays_on_the_optional_match():
     )
     rendered = _render(query)
     assert rendered.cypher == (
-        "MATCH (p:Person) OPTIONAL MATCH (p:Person)-[r:ACTED_IN]->(m:Movie) "
-        "WHERE m.released > $year RETURN p.given, m.title"
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[r:ACTED_IN]->(m:Movie) WHERE m.released > $year RETURN p.given, m.title"
     )
     assert rendered.parameters == {"year": 2000}
 
@@ -161,7 +160,7 @@ def test_a_count_projection_uses_the_named_relationship():
     acted = person.relationship_to(movie, "ACTED_IN", name="r")
     query = match(person).optional_match(acted).returning(person["given"], count(name("r")).alias("films"))
     assert _render(query).cypher == (
-        "MATCH (p:Person) OPTIONAL MATCH (p:Person)-[r:ACTED_IN]->(m:Movie) RETURN p.given, count(r) AS films"
+        "MATCH (p:Person) OPTIONAL MATCH (p)-[r:ACTED_IN]->(m:Movie) RETURN p.given, count(r) AS films"
     )
 
 

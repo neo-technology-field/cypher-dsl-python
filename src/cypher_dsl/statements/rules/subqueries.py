@@ -1,4 +1,4 @@
-"""The subquery rules: CALL import scope and the EXISTS expression body."""
+"""The subquery rules: CALL import scope and the subquery expression body."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from cypher_dsl.clauses.call import SubqueryCallClause
 from cypher_dsl.errors import DslError
-from cypher_dsl.expressions.subqueries import ExistsExpression
+from cypher_dsl.expressions.subqueries import SubqueryExpression
 from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import _same_node_declaration
 from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names
@@ -142,14 +142,14 @@ def output_scope(subquery: Statement | UnionStatement, initial: ScopeFrame) -> S
     return ScopeFrame(names, True, True, initial.reserved, tuple(bindings.items()), unresolved)
 
 
-class ExistsRule(SemanticRule[ExistsExpression]):
-    """Seed the EXISTS body from the expression scope and walk it as its own query."""
+class SubqueryExpressionRule(SemanticRule[SubqueryExpression]):
+    """Seed a subquery expression body from the expression scope and walk it as its own query."""
 
     __slots__ = ()
 
     validates_body = True
 
-    def enter_body(self, frame: ScopeFrame, node: ExistsExpression) -> ScopeFrame:
+    def enter_body(self, frame: ScopeFrame, node: SubqueryExpression) -> ScopeFrame:
         """
         Return the frame the body starts from.
 
@@ -169,7 +169,7 @@ class ExistsRule(SemanticRule[ExistsExpression]):
             frame.unresolved,
         )
 
-    def validate(self, node: ExistsExpression, frame: ScopeFrame) -> None:
+    def validate(self, node: SubqueryExpression, frame: ScopeFrame) -> None:
         """Walk each body branch from the seed, the way a called body is walked."""
         seed = self.enter_body(frame, node)
         from cypher_dsl.statements.composition import _branches
@@ -185,9 +185,9 @@ class ExistsRule(SemanticRule[ExistsExpression]):
         returning = [isinstance(part.clauses[-1], ReturnClause) for part in parts]
         if any(returning) and not all(returning):
             raise DslError(
-                "The EXISTS body's UNION branches mix a final RETURN with branches that end without one. "
-                "All branches must end in RETURN, or none must."
+                "The subquery expression body's UNION branches mix a final RETURN with branches that end "
+                "without one. All branches must end in RETURN, or none must."
             )
 
 
-__all__ = ["CallRule", "ExistsRule", "output_scope"]
+__all__ = ["CallRule", "SubqueryExpressionRule", "output_scope"]

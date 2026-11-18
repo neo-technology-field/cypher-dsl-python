@@ -12,8 +12,8 @@ from cypher_dsl.patterns.nodes import NodePattern, PatternElement, _same_node_de
 from cypher_dsl.patterns.relationships import RelationshipPattern
 from cypher_dsl.statements.frames import (
     DeclarationRole,
+    PatternDeclaration,
     ScopeFrame,
-    WriteDeclaration,
     free_variables_in,
     merge_names,
     reference_names,
@@ -38,7 +38,7 @@ def classify_write_declarations(
     frame: ScopeFrame,
     patterns: tuple[PatternElement, ...],
     keyword: str,
-) -> tuple[WriteDeclaration, ...]:
+) -> tuple[PatternDeclaration, ...]:
     """
     Classify the node patterns of a write clause and reject invalid redeclarations.
 
@@ -49,7 +49,7 @@ def classify_write_declarations(
     """
     declarations = dict(frame.bindings)
     bound_names = set(frame.names or ()) | declarations.keys()
-    classified: list[WriteDeclaration] = []
+    classified: list[PatternDeclaration] = []
     for pattern in patterns:
         endpoint_nodes: set[int] = set()
         if isinstance(pattern, RelationshipPattern):
@@ -67,11 +67,11 @@ def classify_write_declarations(
                     previous is not None and not _same_node_declaration(previous, node_pattern)
                 ):
                     raise DslError(f"{keyword} has a conflicting declaration for bound endpoint {variable!r}.")
-                classified.append(WriteDeclaration(node_pattern, DeclarationRole.REFERENCE))
+                classified.append(PatternDeclaration(node_pattern, DeclarationRole.REFERENCE))
             else:
                 bound_names.add(variable)
                 declarations[variable] = node_pattern
-                classified.append(WriteDeclaration(node_pattern, DeclarationRole.DECLARE))
+                classified.append(PatternDeclaration(node_pattern, DeclarationRole.DECLARE))
         if isinstance(pattern, RelationshipPattern):
             for relationship in pattern.relationships:
                 if relationship.variable is None:
@@ -84,7 +84,7 @@ def classify_write_declarations(
 
 
 def write_property_references(
-    patterns: tuple[PatternElement, ...], declarations: tuple[WriteDeclaration, ...]
+    patterns: tuple[PatternElement, ...], declarations: tuple[PatternDeclaration, ...]
 ) -> tuple[Variable, ...]:
     """Return variables in declared node and relationship properties, excluding reference-node properties."""
     classified = iter(declarations)
@@ -111,9 +111,12 @@ class _PatternWriteRule(SemanticRule[PatternWriteNode], Generic[PatternWriteNode
     def _patterns(self, node: PatternWriteNode) -> tuple[PatternElement, ...]:
         raise NotImplementedError
 
-    def _classify(self, node: PatternWriteNode, frame: ScopeFrame) -> tuple[WriteDeclaration, ...]:
+    def _classify(self, node: PatternWriteNode, frame: ScopeFrame) -> tuple[PatternDeclaration, ...]:
         return classify_write_declarations(frame, self._patterns(node), self.keyword)
 
+    # The parameterised override is sound. CreateRule accepts CreateClause and MergeRule
+    # accepts MergeClause. IntelliJ compares the constrained TypeVar textually.
+    # noinspection method-overriding
     def validate(self, node: PatternWriteNode, frame: ScopeFrame) -> None:
         self._check_reserved(node, frame)
         declarations = self._classify(node, frame)
@@ -129,6 +132,8 @@ class _PatternWriteRule(SemanticRule[PatternWriteNode], Generic[PatternWriteNode
     def _check_actions(self, node: PatternWriteNode, available: tuple[str, ...] | None) -> None:
         """Check attached MERGE actions. CREATE has none."""
 
+    # The parameterised override is sound, for the reason stated on validate.
+    # noinspection method-overriding
     def pattern_role(
         self, clause: PatternWriteNode, node_pattern: NodePattern, frame: ScopeFrame, state: PatternState
     ) -> DeclarationRole | None:
@@ -136,8 +141,9 @@ class _PatternWriteRule(SemanticRule[PatternWriteNode], Generic[PatternWriteNode
             return DeclarationRole.DECLARE
         if state.declarations is None:
             state.declarations = self._classify(clause, frame)
-        if state.next_declaration < len(state.declarations):
-            declaration = state.declarations[state.next_declaration]
+        declarations = state.declarations
+        if state.next_declaration < len(declarations):
+            declaration = declarations[state.next_declaration]
             if declaration.node is node_pattern:
                 state.next_declaration += 1
                 return declaration.role

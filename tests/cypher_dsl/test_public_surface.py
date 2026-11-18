@@ -31,9 +31,11 @@ from cypher_dsl import (
     asterisk,
     boolean_operation,
     call_procedure,
+    collect_subquery,
     condition,
     contains,
     count,
+    count_subquery,
     create,
     desc,
     element_id,
@@ -73,6 +75,7 @@ RENDERER = Renderer.get(Configuration(server_version="5.26"))
 
 PERSON = node("Person", name="p")
 MOVIE = node("Movie", name="m")
+DOG = node("Dog", name="d")
 
 RENDERS: dict[str, tuple[object, str]] = {
     "asc": (
@@ -96,6 +99,12 @@ RENDERS: dict[str, tuple[object, str]] = {
         " RETURN title",
     ),
     "call_procedure": (call_procedure("db.labels"), "CALL db.labels()"),
+    "collect_subquery": (
+        match(PERSON)
+        .where(in_(lit("Ozzy"), collect_subquery(match(PERSON.relationship_to(DOG, "HAS_DOG")).returning(DOG["name"]))))
+        .returning(PERSON["name"]),
+        "MATCH (p:Person) WHERE 'Ozzy' IN COLLECT { MATCH (p)-[:HAS_DOG]->(d:Dog) RETURN d.`name` } RETURN p.`name`",
+    ),
     "condition": (
         match(PERSON).where(condition(PERSON["uid"] == "p1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p",
@@ -105,6 +114,12 @@ RENDERS: dict[str, tuple[object, str]] = {
         "MATCH (p:Person) WHERE p.uid CONTAINS 'p1' RETURN p",
     ),
     "count": (returning(count(PERSON).alias("people")), "RETURN count(p) AS people"),
+    "count_subquery": (
+        match(PERSON)
+        .where(count_subquery(match(PERSON.relationship_to(node("Dog"), "HAS_DOG"))) > lit(1))
+        .returning(PERSON["name"]),
+        "MATCH (p:Person) WHERE COUNT { MATCH (p)-[:HAS_DOG]->(:Dog) } > 1 RETURN p.`name`",
+    ),
     "create": (create(node("Person", name="p", properties={"uid": "p1"})), "CREATE (p:Person {uid: 'p1'})"),
     "desc": (
         match(PERSON).returning(PERSON["uid"]).order_by(desc(PERSON["uid"])),
@@ -120,7 +135,7 @@ RENDERS: dict[str, tuple[object, str]] = {
     ),
     "exists": (
         match(PERSON).where(exists(match(PERSON.relationship_to(node("Dog"), "HAS_DOG")))).returning(PERSON["name"]),
-        "MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(:Dog) } RETURN p.`name`",
+        "MATCH (p:Person) WHERE EXISTS { MATCH (p)-[:HAS_DOG]->(:Dog) } RETURN p.`name`",
     ),
     "fn": (returning(fn("toUpper", "ada").alias("loud")), "RETURN toUpper('ada') AS loud"),
     "has_label": (
@@ -165,7 +180,7 @@ RENDERS: dict[str, tuple[object, str]] = {
         match(PERSON)
         .where(path_pattern(PERSON.relationship_to(node("Person", properties={"uid": lit("p1")}), "WORKS_FOR")))
         .returning(PERSON["uid"]),
-        "MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'}) RETURN p.uid",
+        "MATCH (p:Person) WHERE (p)-[:WORKS_FOR]->(:Person {uid: 'p1'}) RETURN p.uid",
     ),
     "raw": (returning(raw("count(*) AS total")), "RETURN count(*) AS total"),
     "returning": (returning(name("total")), "RETURN total"),
