@@ -1,11 +1,12 @@
 # Publish a release to PyPI and create the matching GitHub release.
 #
 # The workflow is manual and refuses to run twice for the same version, because a PyPI
-# version cannot be overwritten and a pushed tag is permanent. It runs the same Nox
-# matrix the checks workflow runs before anything is tagged, then builds and smokes the
-# wheel through the ``package`` session. The GitHub release is created last, so a failed
-# upload does not announce a package that does not exist. If publishing fails, fix
-# forward with a new version: the existing tag blocks a re-run by design.
+# version cannot be overwritten. It runs the same Nox matrix the checks workflow runs
+# before anything is published, then builds and smokes the wheel through the ``package``
+# session. The upload comes before the tag and the GitHub release is created last, so a
+# failed upload leaves no tag behind and the run can be repeated once the cause is fixed.
+# A tag that was pushed without its upload has to be deleted first: the opening check
+# refuses a version whose tag already exists.
 #
 # The user guide is not rebuilt here. The documentation workflow already publishes it on
 # every push to main, and a release starts from main.
@@ -122,16 +123,15 @@ jobs:
       - name: Build and smoke the package
         run: uv run nox -s package
 
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish
+
       - name: Create and push the tag
         run: |
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
-
-      - name: Publish to PyPI
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
-          UV_PUBLISH_USERNAME: __token__
-        run: uv publish
 
       - name: Create the GitHub release
         env:
