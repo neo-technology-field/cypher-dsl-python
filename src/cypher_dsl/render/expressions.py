@@ -10,6 +10,7 @@ from cypher_dsl.expressions.functions import Asterisk, ElementId, FunctionInvoca
 from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, UnaryOperation, _ConditionOperand
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
+from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.expressions.values import (
     AliasedExpression,
     Literal,
@@ -164,6 +165,11 @@ def sort_item(node: SortItem, children: tuple[Fragment, ...], context: RenderCon
     return context.layout.tokens(children[0].text, node.direction.value)
 
 
+def exists_expression(node: ExistsExpression, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render the EXISTS keyword with its subquery body in braces."""
+    return context.layout.body("EXISTS", children[0].text)
+
+
 def expression_bindings() -> tuple[RuleBinding, ...]:
     """Return the expression and ordering construct renderers."""
     return (
@@ -186,6 +192,7 @@ def expression_bindings() -> tuple[RuleBinding, ...]:
         bind(Asterisk, asterisk),
         bind(RawExpression, raw_expression),
         bind(SortItem, sort_item),
+        bind(ExistsExpression, exists_expression),
     )
 
 

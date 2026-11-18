@@ -95,6 +95,28 @@ the scope frame, records the facts for the occurrence it visits and starts each 
 names it imports. A called body is validated when attached to its enclosing statement and certified at
 render. Every `UNION` branch starts from the same imported names.
 
+`SemanticRule.expression_scope` returns the frame that expressions inside one clause read against. The
+default is the frame in front of the clause. `MATCH` and `OPTIONAL MATCH` return the frame after their
+patterns, a `WITH` filter returns the frame its own projection allows, and a procedure call's filter
+returns the frame after its yields. A `RETURN` item keeps the frame in front of the clause, because a
+projection item cannot read the alias it introduces.
+
+An `EXISTS` subquery expression seeds its body from that frame. The body reads every enclosing name
+without imports, so the seed carries the names, the node identities and the certification, and reserves
+nothing: a body pattern that re-declares an enclosing name is the correlated query Cypher accepts, not a
+rebinding. The cost is that shadowing, a body `WITH` binding an enclosing name to a new value, is not
+detected. An `EXISTS` under a first-position `WITH` filter inherits the open-frame tolerance unless the
+`WITH` restricts its rows: the hook reads the frame in front of the `WITH`, which a `MATCH` does not
+close, so an ordinary `WITH` leaves the seed unknown and references inside the body are tolerated. A
+`DISTINCT` or aggregating `WITH` still yields knowable names, because its modifier scope needs no
+incoming frame, and the body is name-checked against them.
+
+A nested union is checked through `SemanticRule.check_union` by the rule of the construct that holds it,
+so the same `UnionStatement` is valid where its output is discarded and invalid where it is not.
+`UnionStatement` construction enforces the all-or-none shape: every branch ends in `RETURN`, or none
+does. The default `check_union` keeps the column comparison and rejects a union without `RETURN`, which
+the render root and `CALL` bodies require. An `EXISTS` body needs `RETURN` in every branch or in none.
+
 ## How grouping and quoting work
 
 `grouped` (`render/expressions.py`) reads `Expression.precedence` and the parent precedence to decide
@@ -113,7 +135,9 @@ It is not a parser or security boundary.
 1. Define the syntax-bearing AST class and its construction API under `clauses/` or `expressions/`.
 2. Write a `SemanticRule` in the matching module under `statements/rules/` and register it in
    `shared_rules()`. Record analysis facts or a `SyntaxRequirement` there when the occurrence needs
-   scope information or has a target restriction.
+   scope information or has a target restriction. Declare the construct as the rule's type parameter,
+   `SemanticRule[MyClause]`, and annotate each hook with that construct, so the narrowed signature
+   matches the declaration without an override suppression.
    - An expression that binds names for its own subtree declares them through `AstNode.local_names`.
    - A construct that rebinds names checks `reserved_name_conflict` and raises through
      `reject_reserved_redeclaration`.

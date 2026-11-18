@@ -20,6 +20,7 @@ from cypher_dsl.api import (
     desc,
     element_id,
     ends_with,
+    exists,
     fn,
     has_label,
     in_,
@@ -75,6 +76,7 @@ from cypher_dsl.expressions.functions import Asterisk, ElementId, FunctionInvoca
 from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, Condition, UnaryOperation
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
+from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.expressions.values import (
     UNBOUND,
     AliasedExpression,
@@ -112,6 +114,7 @@ __all__ = [
     "CreateClause",
     "DeleteClause",
     "ElementId",
+    "ExistsExpression",
     "Expression",
     "ExpressionInput",
     "FrozenValue",
@@ -171,6 +174,7 @@ __all__ = [
     "desc",
     "element_id",
     "ends_with",
+    "exists",
     "fn",
     "freeze_value",
     "has_label",

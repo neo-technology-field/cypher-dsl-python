@@ -89,7 +89,8 @@ def _subquery_returns(subquery: Statement | UnionStatement) -> bool:
     return isinstance(subquery, UnionStatement) or isinstance(subquery.clauses[-1], ReturnClause)
 
 
-def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
+def _validate_clause_order(clauses: tuple[Clause, ...]) -> None:
+    """Reject an empty sequence, a misplaced RETURN, or a misplaced reading or updating clause."""
     from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
     from cypher_dsl.clauses.match import MatchClause
     from cypher_dsl.clauses.unwind import UnwindClause
@@ -112,6 +113,12 @@ def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
             require_read_position(prefix, "UNWIND")
         elif isinstance(clause, (SubqueryCallClause, ProcedureCallClause)):
             require_read_position(prefix, "CALL")
+
+
+def _validate_final_clause(clauses: tuple[Clause, ...]) -> None:
+    """Reject a final clause that cannot end a standalone statement."""
+    from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
+
     final = clauses[-1]
     if isinstance(final, SubqueryCallClause):
         if _subquery_returns(final.subquery):
@@ -128,4 +135,10 @@ def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
         raise DslError(
             "A statement must end with a RETURN clause or a write clause. A read that stops at MATCH is incomplete."
         )
+
+
+def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
+    """Reject a clause sequence that is not a valid standalone statement: order, final clause and scope walk."""
+    _validate_clause_order(clauses)
+    _validate_final_clause(clauses)
     walk_clauses(clauses)

@@ -97,7 +97,10 @@ class _SemanticVisitor(_Visitor):
             self._body_depth_contributions.append(contribution)
             self._body_validation_depth += contribution
             if isinstance(node, UnionStatement):
-                union_columns_check(node.parts, seed)
+                if parent is None:
+                    union_columns_check(node.parts, seed)
+                else:
+                    parent_rule.check_union(node.parts, seed)
             self._frames.append(seed)
         rule = self._rules.resolve(node) if isinstance(node, Clause) else self._rules.find(node)
         if rule is not None:
@@ -107,6 +110,7 @@ class _SemanticVisitor(_Visitor):
         if isinstance(node, Clause):
             self._clauses.append(node)
             self._clause_states.append(PatternState())
+            self._frames.append(self._rules.resolve(node).expression_scope(self._frames[-1], node))
         self._nodes.append(node)
 
     def leave(self, node: AstNode) -> None:
@@ -122,6 +126,7 @@ class _SemanticVisitor(_Visitor):
         if isinstance(node, Clause):
             self._clauses.pop()
             self._clause_states.pop()
+            self._frames.pop()
             self._frames[-1] = self._rules.resolve(node).bindings(self._frames[-1], node)
         if isinstance(node, (Statement, UnionStatement)):
             self._frames.pop()

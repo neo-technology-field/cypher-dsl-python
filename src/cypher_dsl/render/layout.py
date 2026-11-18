@@ -7,10 +7,10 @@ site performs: ``tokens`` and ``series`` join inside one expression and never br
 ``listed`` and ``parenthesized`` join a clause head and its items and wrap when
 overflowing, ``owned`` and ``packed`` append the sub-clauses a clause owns, ``clauses``
 joins the clauses of one statement, ``between`` joins union branches and ``body`` joins
-a ``CALL`` header, its body statement and the closing brace. The compact layout renders
-every join on one line; the pretty layout in ``render/pretty.py`` is a second
-implementation of the same verbs, not an edit per construct. Sites that are not
-fragment joins -- unary-minus adjacency, colon-joined labels, literal rendering --
+a subquery header (``CALL`` or ``EXISTS``), its body statement and the closing brace. The
+compact layout renders every join on one line; the pretty layout in ``render/pretty.py``
+is a second implementation of the same verbs, not an edit per construct. Sites that are
+not fragment joins -- unary-minus adjacency, colon-joined labels, literal rendering --
 never call these verbs.
 """
 
@@ -58,7 +58,7 @@ class Layout:
         return f" {keyword} ".join(parts)
 
     def body(self, header: str, inner: str) -> str:
-        """Join a ``CALL`` header, its body statement and the closing brace."""
+        """Join a subquery header (``CALL`` or ``EXISTS``), its body statement and the closing brace."""
         return f"{header} {{ {inner} }}"
 
 

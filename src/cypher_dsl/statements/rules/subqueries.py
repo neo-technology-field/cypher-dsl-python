@@ -1,18 +1,17 @@
-"""The CALL rules: subquery import scope and procedure yield bindings."""
+"""The subquery rules: CALL import scope and the EXISTS expression body."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
+from cypher_dsl.clauses.call import SubqueryCallClause
 from cypher_dsl.errors import DslError
-from cypher_dsl.expressions.values import AliasedExpression
+from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import _same_node_declaration
-from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names, reference_names
+from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names
 from cypher_dsl.statements.rules.base import (
     SemanticRule,
-    check_references,
     frame_after,
     reject_reserved_redeclaration,
     walk_clauses,
@@ -29,14 +28,14 @@ if TYPE_CHECKING:
     from cypher_dsl.statements.rules.base import AnalysisSink
 
 
-class CallRule(SemanticRule):
+class CallRule(SemanticRule[SubqueryCallClause]):
     """Seed a called body with its imports and check the call against its frame."""
 
     __slots__ = ()
 
     validates_body = True
 
-    def enter_body(self, frame: ScopeFrame, node: SubqueryCallClause) -> ScopeFrame:  # type: ignore[override]
+    def enter_body(self, frame: ScopeFrame, node: SubqueryCallClause) -> ScopeFrame:
         if node.import_all:
             names = frame.names if frame.closed or frame.certified else None
         else:
@@ -52,7 +51,7 @@ class CallRule(SemanticRule):
             unresolved,
         )
 
-    def validate(self, node: SubqueryCallClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: SubqueryCallClause, frame: ScopeFrame) -> None:
         if not node.import_all and frame.names is not None and (frame.closed or frame.certified):
             for variable in node.imports:
                 if variable.symbol.value not in frame.names:
@@ -61,9 +60,9 @@ class CallRule(SemanticRule):
                         "Import a name the preceding clauses bind."
                     )
         seed = self.enter_body(frame, node)
-        from cypher_dsl.statements.composition import UnionStatement
+        from cypher_dsl.statements.composition import UnionStatement, _branches
 
-        branches = node.subquery.parts if isinstance(node.subquery, UnionStatement) else (node.subquery,)
+        branches = _branches(node.subquery)
         for branch in branches:
             walk_clauses(branch.clauses, seed)
         if isinstance(node.subquery, UnionStatement):
@@ -81,7 +80,7 @@ class CallRule(SemanticRule):
                         "Rename the returned value so the outer scope keeps one binding."
                     )
 
-    def bindings(self, frame: ScopeFrame, node: SubqueryCallClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: SubqueryCallClause) -> ScopeFrame:
         output = output_scope(node.subquery, self.enter_body(frame, node))
         names = None if frame.names is None or output.names is None else merge_names(frame.names, output.names)
         bindings = dict(frame.bindings)
@@ -95,57 +94,12 @@ class CallRule(SemanticRule):
             frame.unresolved | output.unresolved,
         )
 
-    def record(self, node: SubqueryCallClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
+    def record(self, node: SubqueryCallClause, frame: ScopeFrame, sink: AnalysisSink) -> None:
         sink.requirement(Capability.SCOPE_CLAUSES)
         if node.optional:
             sink.requirement(Capability.OPTIONAL_CALL)
         if node.in_transactions:
             sink.requirement(Capability.IN_TRANSACTIONS)
-
-
-class ProcedureCallRule(SemanticRule):
-    """Bind the names a procedure call yields and check the call against its frame."""
-
-    __slots__ = ()
-
-    def bindings(self, frame: ScopeFrame, node: ProcedureCallClause) -> ScopeFrame:  # type: ignore[override]
-        if frame.names is None or not node.yields:
-            return frame
-        return ScopeFrame(
-            merge_names(frame.names, _yielded_bindings(node)),
-            frame.closed,
-            frame.certified,
-            frame.reserved,
-            frame.bindings,
-            frame.unresolved,
-        )
-
-    def validate(self, node: ProcedureCallClause, frame: ScopeFrame) -> None:  # type: ignore[override]
-        check_references(node.arguments, reference_names(frame), "CALL")
-        bindings = _yielded_bindings(node)
-        for binding in bindings:
-            if binding in frame.reserved:
-                reject_reserved_redeclaration(binding)
-            if frame.names is not None and binding in frame.names:
-                raise DslError(
-                    f"CALL YIELD binds {binding!r}, which the outer query already holds. "
-                    "Rename the yielded item so the outer scope keeps one binding."
-                )
-        if node.predicate is None:
-            return
-        names = reference_names(frame)
-        check_references((node.predicate,), None if names is None else merge_names(names, bindings), "CALL")
-
-    def record(self, node: ProcedureCallClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
-        if node.optional:
-            sink.requirement(Capability.OPTIONAL_CALL)
-
-
-def _yielded_bindings(node: ProcedureCallClause) -> tuple[str, ...]:
-    """Return the name each yield item binds, the alias when one is present."""
-    return tuple(
-        item.alias_name.value if isinstance(item, AliasedExpression) else item.symbol.value for item in node.yields
-    )
 
 
 def output_scope(subquery: Statement | UnionStatement, initial: ScopeFrame) -> ScopeFrame:
@@ -188,4 +142,52 @@ def output_scope(subquery: Statement | UnionStatement, initial: ScopeFrame) -> S
     return ScopeFrame(names, True, True, initial.reserved, tuple(bindings.items()), unresolved)
 
 
-__all__ = ["CallRule", "ProcedureCallRule", "output_scope"]
+class ExistsRule(SemanticRule[ExistsExpression]):
+    """Seed the EXISTS body from the expression scope and walk it as its own query."""
+
+    __slots__ = ()
+
+    validates_body = True
+
+    def enter_body(self, frame: ScopeFrame, node: ExistsExpression) -> ScopeFrame:
+        """
+        Return the frame the body starts from.
+
+        The body reads every enclosing name without imports, so the seed keeps the names,
+        the node identities and the certification of the frame in front of the
+        expression, and reserves nothing. Reserving the outer names would reject a body
+        pattern that re-declares one, which is the correlated query Cypher accepts. The
+        cost is that a body ``WITH`` binding an enclosing name to a new value, the
+        shadowing Cypher rejects, is not detected here.
+        """
+        return ScopeFrame(
+            frame.names,
+            True,
+            frame.certified,
+            frozenset(),
+            frame.bindings,
+            frame.unresolved,
+        )
+
+    def validate(self, node: ExistsExpression, frame: ScopeFrame) -> None:
+        """Walk each body branch from the seed, the way a called body is walked."""
+        seed = self.enter_body(frame, node)
+        from cypher_dsl.statements.composition import _branches
+
+        branches = _branches(node.subquery)
+        for branch in branches:
+            walk_clauses(branch.clauses, seed)
+
+    def check_union(self, parts: tuple[Statement, ...], seed: ScopeFrame) -> None:
+        """Require RETURN in every branch or in none, because the output is discarded."""
+        from cypher_dsl.clauses.projection import ReturnClause
+
+        returning = [isinstance(part.clauses[-1], ReturnClause) for part in parts]
+        if any(returning) and not all(returning):
+            raise DslError(
+                "The EXISTS body's UNION branches mix a final RETURN with branches that end without one. "
+                "All branches must end in RETURN, or none must."
+            )
+
+
+__all__ = ["CallRule", "ExistsRule", "output_scope"]

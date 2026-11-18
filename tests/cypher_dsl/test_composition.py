@@ -225,3 +225,32 @@ def test_upstream_union_all_of_two_matches():
     assert rendered.cypher == (
         "MATCH (`b`:`Bike`) WHERE `b`.`a` = 'A' RETURN `b` UNION ALL MATCH (`b`:`Bike`) WHERE `b`.`b` = 'B' RETURN `b`"
     )
+
+
+def test_an_all_unit_union_constructs() -> None:
+    person = node("Person", name="p")
+    movie = node("Movie", name="m")
+    combined = union(match(person), match(movie))
+    assert len(combined.parts) == 2
+
+
+def test_a_mixed_union_rejects_at_construction() -> None:
+    person = node("Person", name="p")
+    movie = node("Movie", name="m")
+    with pytest.raises(DslError, match="mix a final RETURN"):
+        union(match(person).returning(person), match(movie))
+
+
+def test_a_root_unit_union_renders_no_text() -> None:
+    person = node("Person", name="p")
+    movie = node("Movie", name="m")
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    with pytest.raises(DslError, match="requires each part to end with a RETURN"):
+        renderer.render(union(match(person), match(movie)))
+
+
+def test_a_unit_union_body_still_rejects_inside_call() -> None:
+    person = node("Person", name="p")
+    movie = node("Movie", name="m")
+    with pytest.raises(DslError, match="requires each part to end with a RETURN"):
+        match(person).call(union(match(movie), match(movie)))

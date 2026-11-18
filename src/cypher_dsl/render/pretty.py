@@ -18,7 +18,9 @@ from dataclasses import dataclass
 from cypher_dsl.ast import AstNode, OccurrencePath, _Visitor
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.clauses.call import SubqueryCallClause
+from cypher_dsl.clauses.match import Where
 from cypher_dsl.clauses.write import MergeAction
+from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.render.layout import COMPACT, Layout
 from cypher_dsl.render.rules import RenderingRules
 from cypher_dsl.render.traversal import RenderingTraversal
@@ -136,18 +138,29 @@ class PrettyOccurrence(Layout):
         return f" {keyword} ".join(items)
 
     def body(self, header: str, inner: str) -> str:
-        """Join a CALL header, its body statement one level deeper and the closing brace."""
+        """Join a subquery header (``CALL`` or ``EXISTS``), its body one level deeper and the closing brace."""
         return f"{header} {{\n{_pad(self.level + 1)}{inner}\n{_pad(self.level)}}}"
 
 
-def _contains_call(node: object) -> bool:
-    """Return whether a statement holds a direct subquery call.
-
-    A union is not a statement: a caller checks its branches one by one.
+def _holds_subquery(finalised: Statement | UnionStatement) -> bool:
     """
-    if isinstance(node, Statement):
-        return any(isinstance(clause, SubqueryCallClause) for clause in node.clauses)
-    return False
+    Return whether a render holds a subquery body.
+
+    A body's braces always break, so a statement holding one breaks around its clauses
+    even when the whole render fits on one line. A union is checked branch by branch.
+    """
+    statements = finalised.parts if isinstance(finalised, UnionStatement) else (finalised,)
+    return any(_holds_body(statement) for statement in statements)
+
+
+def _holds_body(statement: Statement) -> bool:
+    """Return whether a statement holds a subquery call clause or an ``EXISTS`` expression."""
+    return any(isinstance(clause, SubqueryCallClause) or _holds_exists(clause) for clause in statement.clauses)
+
+
+def _holds_exists(node: AstNode) -> bool:
+    """Return whether a subtree holds an ``ExistsExpression``."""
+    return isinstance(node, ExistsExpression) or any(_holds_exists(child) for child in node.children())
 
 
 class _WalkFrame:
@@ -182,24 +195,20 @@ class _DecisionWalk(_Visitor):
             inherited_broken, level = parent.children_broken, parent.children_level
         else:
             path, inherited_broken, level = (), False, 0
-        if isinstance(node, Statement):
-            broken = inherited_broken or self._flat.get(path, 0) + level * INDENT_WIDTH > WIDTH or _contains_call(node)
-            self._table[path] = PrettyOccurrence(broken, level)
-            self._frames.append(_WalkFrame(path, broken, level))
-        elif isinstance(node, UnionStatement):
-            broken = (
-                inherited_broken
-                or self._flat.get(path, 0) + level * INDENT_WIDTH > WIDTH
-                or any(_contains_call(part) for part in node.parts)
-            )
+        if isinstance(node, (Statement, UnionStatement)):
+            broken = inherited_broken or self._flat.get(path, 0) + level * INDENT_WIDTH > WIDTH or _holds_subquery(node)
             self._table[path] = PrettyOccurrence(broken, level)
             self._frames.append(_WalkFrame(path, broken, level))
         # Dispatching SubqueryCallClause before the generic Clause branch is policy, not
         # convenience: a call is a clause that must not inherit the plain-clause settings.
-        elif isinstance(node, SubqueryCallClause):
+        # Both kinds of subquery body always break their braces and start their own break
+        # decision one level deeper.
+        elif isinstance(node, (SubqueryCallClause, ExistsExpression)):
             self._table[path] = PrettyOccurrence(True, level)
             self._frames.append(_WalkFrame(path, False, level + 1))
-        elif isinstance(node, MergeAction):
+        elif isinstance(node, (MergeAction, Where)):
+            # An owned part sits one level below its owner when the clause breaks, so a
+            # subquery body inside it indents from that printed position.
             settings = PrettyOccurrence(inherited_broken, level + 1)
             self._table[path] = settings
             self._frames.append(_WalkFrame(path, settings.broken, settings.level))
@@ -232,11 +241,7 @@ def render_pretty(
     captures: dict[OccurrencePath, str] = {}
     measured = RenderingTraversal(rules, analysis, always_escape_names, COMPACT, captures=captures)
     root_text = measured.render(finalised)
-    if (
-        len(root_text) <= WIDTH
-        and not _contains_call(finalised)
-        and not (isinstance(finalised, UnionStatement) and any(_contains_call(part) for part in finalised.parts))
-    ):
+    if len(root_text) <= WIDTH and not _holds_subquery(finalised):
         return root_text
     flat = {path: len(text) for path, text in captures.items()}
     occurrences = decide(finalised, flat)

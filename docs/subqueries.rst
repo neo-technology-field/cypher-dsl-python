@@ -205,6 +205,75 @@ every ``WITH`` inside the subquery, but this library applies its ordinary scope 
 the body, so a ``WITH`` that drops an imported name also drops it for the rest of the
 body. Keep the import in the inner ``WITH`` projection when the body needs it later.
 
+Test whether a subquery matches
+-------------------------------
+
+``exists`` builds an ``EXISTS { ... }`` subquery expression. Its value is a predicate, so
+it filters in ``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|`` and ``~``.
+Unlike a ``CALL`` subquery, the body reads the enclosing scope without a scope clause, so
+an outer name is visible inside the body as it is outside. The body must be a read query,
+and the names it binds stay inside the expression.
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, exists, match, node, param
+
+    person = node("Person", name="p")
+    dog = node("Dog", name="d")
+    walked = match(person.relationship_to(dog, "HAS_DOG")).where(
+        dog["name"] == param("dog_name")
+    )
+    statement = match(person).where(exists(walked)).returning(person["name"])
+
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+      WHERE EXISTS {
+        MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
+      }
+    RETURN p.`name`
+
+A pattern element is accepted where the body is one pattern, and the rendered text names
+the ``MATCH`` keyword. A final ``RETURN`` in the body is optional and its columns are
+discarded: ``EXISTS`` tests only whether the body produces a row. A union body follows
+the rule the ``UNION`` builder applies to branches.
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, exists, match, node
+
+    person = node("Person", name="p")
+    keeps_dog = exists(person.relationship_to(node("Dog"), "HAS_DOG"))
+    statement = match(person).returning(person["name"], keeps_dog.alias("keeps_dog"))
+
+    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+    RETURN p.`name`, EXISTS {
+      MATCH (p:Person)-[:HAS_DOG]->(:Dog)
+    } AS keeps_dog
+
+Two limits follow from the scope model. A body ``WITH`` that drops an enclosing name does
+not keep that name visible afterwards, so carry the variable through that ``WITH`` or let
+a body pattern re-declare it. Shadowing is not rejected here, only by the server: a body
+``WITH`` that binds an enclosing name to a new value builds and renders, and the server
+rejects the statement.
+
+Four checks apply to this construct:
+
+- The body must not write. ``CREATE``, ``MERGE``, ``SET``, ``REMOVE``, ``DELETE`` and
+  ``IN TRANSACTIONS`` are rejected, including inside a nested call body.
+- A union body needs ``RETURN`` in every branch or in none.
+- The names the body binds do not become available outside the expression.
+- The body reads the names it binds itself and the names the enclosing query has bound.
+  Where the library knows the enclosing clause's names, a name it has not bound gets the
+  usual ``not in scope`` rejection, which names the offender.
 
 Calling procedures
 ------------------

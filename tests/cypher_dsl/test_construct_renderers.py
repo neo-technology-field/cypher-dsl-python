@@ -41,6 +41,7 @@ from cypher_dsl import (
 from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.clauses.projection import ProjectionClause
 from cypher_dsl.errors import DslError
+from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.patterns.labels import ANY_LABEL, LabelExpression, label
 from cypher_dsl.render.expressions import expression_bindings
 from cypher_dsl.render.filters import filter_bindings
@@ -305,6 +306,7 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         -(lit(1) + lit(2)),
         ~(name("a") > 1),
         condition(name("flag")),
+        ExistsExpression(match(person).returning(person).build()),
         name("n")[param("key")],
         list_(name("n"), 2),
         map_({"uid": name("n")}),

@@ -9,20 +9,20 @@ from cypher_dsl.clauses.unwind import UnwindClause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.functions import Asterisk, RawExpression
 from cypher_dsl.expressions.values import AliasedExpression, Variable
+from cypher_dsl.statements.composition import UnionStatement
 from cypher_dsl.statements.frames import ScopeFrame, merge_names, reference_names
 from cypher_dsl.statements.rules.base import SemanticRule, check_references, frame_after, reject_reserved_redeclaration
 
 if TYPE_CHECKING:
-    from cypher_dsl.ast import AstNode
     from cypher_dsl.statements.composition import Statement
 
 
-class UnwindRule(SemanticRule):
+class UnwindRule(SemanticRule[UnwindClause]):
     """Bind one variable per element and check the source references."""
 
     __slots__ = ()
 
-    def bindings(self, frame: ScopeFrame, node: UnwindClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: UnwindClause) -> ScopeFrame:
         if frame.names is None:
             return frame
         return ScopeFrame(
@@ -34,18 +34,18 @@ class UnwindRule(SemanticRule):
             frame.unresolved,
         )
 
-    def validate(self, node: UnwindClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: UnwindClause, frame: ScopeFrame) -> None:
         check_references((node.values,), reference_names(frame), "UNWIND")
         if node.variable.symbol.value in frame.reserved:
             reject_reserved_redeclaration(node.variable.symbol.value)
 
 
-class UnionRule(SemanticRule):
+class UnionRule(SemanticRule[UnionStatement]):
     """Start every union branch from the frame in front of the union."""
 
     __slots__ = ()
 
-    def enter_body(self, frame: ScopeFrame, node: AstNode) -> ScopeFrame:
+    def enter_body(self, frame: ScopeFrame, node: UnionStatement) -> ScopeFrame:
         return frame
 
 

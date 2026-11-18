@@ -526,6 +526,43 @@ the named output columns.
 
     CALL dbms.checkConfigValue($setting, 'true') YIELD valid RETURN valid
 
+``EXISTS``
+~~~~~~~~~~
+
+``exists`` builds an existential subquery expression. It is a predicate, so it filters in
+``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|`` and ``~``. The body is a
+read subquery that sees the enclosing scope without a scope clause.
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        exists,
+        match,
+        node,
+        param,
+    )
+
+    person = node("Person", name="p")
+    dog = node("Dog", name="d")
+    walked = match(person.relationship_to(dog, "HAS_DOG")).where(
+        dog["name"] == param("dog_name")
+    )
+    statement = match(person).where(exists(walked)).returning(person["name"])
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: text
+
+    MATCH (p:Person)
+    WHERE EXISTS {
+            MATCH (p:Person)-[:HAS_DOG]->(d:Dog) WHERE d.`name` = $dog_name
+    }
+    RETURN p.`name`
+
+The scope rules, the pattern-element form and the limits are on :doc:`subqueries`.
+
 Expressions
 -----------
 
@@ -592,7 +629,6 @@ declaration is too old.
 Not yet
 -------
 
-- ``EXISTS { MATCH ... }`` — an existential subquery.
 - ``(a)-[:R]->(b)`` as a boolean — a path pattern expression.
 - ``COUNT { ... }`` and ``COLLECT { ... }`` — subquery expressions.
 - ``SEARCH n IN (VECTOR INDEX idx FOR $v) SCORE AS s``, and the ``FULLTEXT`` variation —

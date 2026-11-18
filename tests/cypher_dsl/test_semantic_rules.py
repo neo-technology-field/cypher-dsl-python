@@ -58,8 +58,8 @@ def test_registry_find_uses_the_nearest_registered_class_or_returns_none() -> No
     class DerivedMarkerExpression(MarkerExpression):
         __slots__ = ()
 
-    fallback = SemanticRule()
-    marker = SemanticRule()
+    fallback = SemanticRule[AstNode]()
+    marker = SemanticRule[AstNode]()
     rules = SemanticRules({Expression: fallback, MarkerExpression: marker})
     assert rules.find(MarkerExpression()) is marker
     assert rules.find(DerivedMarkerExpression()) is marker
@@ -139,7 +139,7 @@ def test_write_endpoint_without_identity_follows_the_deferral_set() -> None:
 
 def test_call_enter_body_seeds_imports_and_reserved() -> None:
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     person = node("Person", name="p")
     body = match(node("Movie", name="m")).returning(name("m")).build()
@@ -158,7 +158,7 @@ def test_call_enter_body_seeds_imports_and_reserved() -> None:
 
 def test_call_wildcard_seeds_only_from_closed_or_certified_frames() -> None:
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     body = match(node("Movie", name="m")).returning(name("m")).build()
     clause = SubqueryCallClause(body, (), import_all=True)
@@ -175,7 +175,7 @@ def test_call_wildcard_seeds_only_from_closed_or_certified_frames() -> None:
 def test_call_named_import_defers_an_endpoint_identity_until_attachment() -> None:
     from cypher_dsl import create
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
     from cypher_dsl.statements.rules.writes import classify_write_declarations
 
     person = node("Person", name="p")
@@ -189,7 +189,7 @@ def test_call_named_import_defers_an_endpoint_identity_until_attachment() -> Non
 def test_call_wildcard_defers_imports_from_an_empty_construction_frame() -> None:
     from cypher_dsl import create
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     clause = SubqueryCallClause(create(node("Person")).build(), import_all=True)
     seed = CallRule().enter_body(ScopeFrame(()), clause)
@@ -207,7 +207,7 @@ def test_write_rejects_a_relationship_name_reused_as_an_endpoint_in_an_unknown_f
 
 def test_call_import_existence_follows_certification() -> None:
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     body = match(node("Movie", name="m")).returning(name("m")).build()
     clause = SubqueryCallClause(body, (name("p"), name("t")))
@@ -220,7 +220,7 @@ def test_reserved_names_survive_an_inner_with() -> None:
     from cypher_dsl import lit, with_
     from cypher_dsl.clauses.call import SubqueryCallClause
     from cypher_dsl.statements.rules import walk_clauses
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     body = with_(lit(1).alias("one")).unwind([1], name("p")).returning(name("one")).build()
     clause = SubqueryCallClause(body, (name("p"),))
@@ -234,7 +234,7 @@ def test_unknown_names_stay_uncertified() -> None:
     from cypher_dsl.clauses.call import SubqueryCallClause
     from cypher_dsl.statements.frames import is_unresolved_node
     from cypher_dsl.statements.rules import frame_after, walk_clauses
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     person = node("Person", name="p")
     body = with_(name("p")).create(person.relationship_to(node("Clone"), "COPIED_AS")).build()
@@ -340,7 +340,7 @@ def test_analysis_dispatches_expression_validation_and_recording(monkeypatch: py
 
     validated: list[ScopeFrame] = []
 
-    class MarkerRule(SemanticRule):
+    class MarkerRule(SemanticRule[AstNode]):
         def validate(self, node: AstNode, frame: ScopeFrame) -> None:
             validated.append(frame)
 
@@ -557,7 +557,7 @@ def test_call_records_capabilities_at_the_call_occurrence() -> None:
     from cypher_dsl.features import Capability
     from cypher_dsl.statements.frames import SyntaxRequirement
     from cypher_dsl.statements.rules.base import AnalysisSink
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     clause = SubqueryCallClause(create(node("Person")).build(), optional=True, in_transactions=True)
     requirements: list[SyntaxRequirement] = []
@@ -572,7 +572,7 @@ def test_call_records_capabilities_at_the_call_occurrence() -> None:
 def test_call_bindings_add_outputs_but_not_unit_body_declarations() -> None:
     from cypher_dsl import create
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     person = node("Person", name="p")
     movie = node("Movie", name="m")
@@ -592,7 +592,7 @@ def test_call_bindings_add_outputs_but_not_unit_body_declarations() -> None:
 
 def test_procedure_call_bindings_add_yielded_names_without_node_declarations() -> None:
     from cypher_dsl.clauses.call import ProcedureCallClause
-    from cypher_dsl.statements.rules.call import ProcedureCallRule
+    from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 
     person = node("Person", name="p")
     frame = ScopeFrame(("p",), reserved=frozenset({"p"}), bindings=(("p", person),))
@@ -615,7 +615,7 @@ def test_procedure_call_bindings_add_yielded_names_without_node_declarations() -
 
 def test_procedure_call_rejects_yield_collisions_and_reserved_names() -> None:
     from cypher_dsl.clauses.call import ProcedureCallClause
-    from cypher_dsl.statements.rules.call import ProcedureCallRule
+    from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 
     clause = ProcedureCallClause(("db", "labels"), (), optional=False, yields=(name("p"),))
     rule = ProcedureCallRule()
@@ -627,7 +627,7 @@ def test_procedure_call_rejects_yield_collisions_and_reserved_names() -> None:
 
 def test_procedure_call_checks_arguments_and_the_predicate_scope() -> None:
     from cypher_dsl.clauses.call import ProcedureCallClause
-    from cypher_dsl.statements.rules.call import ProcedureCallRule
+    from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 
     rule = ProcedureCallRule()
     unknown_argument = ProcedureCallClause(("db", "labels"), (name("missing"),), optional=False)
@@ -657,7 +657,7 @@ def test_procedure_call_records_the_optional_capability_only_when_optional() -> 
     from cypher_dsl.features import Capability
     from cypher_dsl.statements.frames import SyntaxRequirement
     from cypher_dsl.statements.rules.base import AnalysisSink
-    from cypher_dsl.statements.rules.call import ProcedureCallRule
+    from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 
     optional: list[SyntaxRequirement] = []
     ProcedureCallRule().record(
@@ -675,7 +675,7 @@ def test_procedure_call_records_the_optional_capability_only_when_optional() -> 
 def test_call_rejects_outer_name_collisions_even_after_projection_discards_them(reserved: bool) -> None:
     from cypher_dsl import lit, returning
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule
+    from cypher_dsl.statements.rules.subqueries import CallRule
 
     clause = SubqueryCallClause(returning(lit(1).alias("p")).build())
     frame = ScopeFrame((), reserved=frozenset({"p"})) if reserved else ScopeFrame(("p",))
@@ -686,7 +686,7 @@ def test_call_rejects_outer_name_collisions_even_after_projection_discards_them(
 
 def test_call_union_outputs_keep_only_compatible_node_identities() -> None:
     from cypher_dsl import union
-    from cypher_dsl.statements.rules.call import output_scope
+    from cypher_dsl.statements.rules.subqueries import output_scope
 
     person = node("Person", name="p")
     compatible = node("Person", name="q")
@@ -740,7 +740,7 @@ def test_projections_retain_deferred_aliases_but_not_replacement_values() -> Non
 def test_call_outputs_merge_deferred_aliases_and_unit_bodies_export_none() -> None:
     from cypher_dsl import create, lit, returning, union
     from cypher_dsl.clauses.call import SubqueryCallClause
-    from cypher_dsl.statements.rules.call import CallRule, output_scope
+    from cypher_dsl.statements.rules.subqueries import CallRule, output_scope
 
     first = returning(name("p").alias("result")).build()
     second = returning(lit(1).alias("result")).build()

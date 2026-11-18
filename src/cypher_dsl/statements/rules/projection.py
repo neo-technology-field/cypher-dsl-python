@@ -231,12 +231,12 @@ def _projection_unresolved_nodes(frame: ScopeFrame, clause: ProjectionClause) ->
     return frozenset(unresolved)
 
 
-class ProjectionRule(SemanticRule):
+class ProjectionRule(SemanticRule[ProjectionClause]):
     """Close the frame onto the projection output and check items and modifiers."""
 
     __slots__ = ()
 
-    def bindings(self, frame: ScopeFrame, node: ProjectionClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: ProjectionClause) -> ScopeFrame:
         names = projection_output_names(frame, node)
         # An unknown standalone projection can still acquire node identities from an enclosing call.
         return ScopeFrame(
@@ -248,7 +248,16 @@ class ProjectionRule(SemanticRule):
             _projection_unresolved_nodes(frame, node),
         )
 
-    def validate(self, node: ProjectionClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def expression_scope(self, frame: ScopeFrame, node: ProjectionClause) -> ScopeFrame:
+        """Let a ``WITH`` filter read the names the ``WITH`` itself introduces."""
+        if not isinstance(node, WithClause):
+            return frame
+        names = _modifier_scope(frame, node)
+        if names is None:
+            return ScopeFrame(names=None, closed=False, certified=frame.certified)
+        return ScopeFrame(names, True, frame.certified, frame.reserved, frame.bindings, frame.unresolved)
+
+    def validate(self, node: ProjectionClause, frame: ScopeFrame) -> None:
         check_references(node.expressions, reference_names(frame), node.keyword)
         validate_projection_modifiers(frame, node)
         self._check_reserved(node, frame)

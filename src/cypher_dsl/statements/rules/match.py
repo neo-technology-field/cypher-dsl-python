@@ -18,18 +18,22 @@ from cypher_dsl.statements.rules.patterns import pattern_bindings, pattern_prope
 
 if TYPE_CHECKING:
     from cypher_dsl.clauses.base import Clause
-    from cypher_dsl.statements.rules.base import AnalysisSink, PatternState  # noqa: F401
+    from cypher_dsl.statements.rules.base import PatternState
 
 
-class MatchRule(SemanticRule):
+class MatchRule(SemanticRule[MatchClause]):
     """Bind pattern names, check pattern references and mark every pattern a declaration."""
 
     __slots__ = ()
 
-    def bindings(self, frame: ScopeFrame, node: MatchClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: MatchClause) -> ScopeFrame:
         return pattern_transition(frame, node.patterns)
 
-    def validate(self, node: MatchClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def expression_scope(self, frame: ScopeFrame, node: MatchClause) -> ScopeFrame:
+        """Let a filter read the names the clause's own patterns bind."""
+        return self.bindings(frame, node)
+
+    def validate(self, node: MatchClause, frame: ScopeFrame) -> None:
         if frame.closed and frame.names is not None:
             available = merge_names(frame.names, pattern_bindings(node.patterns))
             check_references(pattern_property_references(node.patterns), available, "MATCH pattern properties")

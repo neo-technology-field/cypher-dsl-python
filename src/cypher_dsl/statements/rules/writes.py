@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from cypher_dsl.clauses.write import Assignment, CreateClause, DeleteClause, MergeClause, RemoveClause, SetClause
 from cypher_dsl.errors import DslError
@@ -29,6 +29,9 @@ from cypher_dsl.statements.rules.patterns import pattern_bindings, pattern_trans
 if TYPE_CHECKING:
     from cypher_dsl.expressions.values import Variable
     from cypher_dsl.statements.rules.base import AnalysisSink, PatternState
+
+
+PatternWriteNode = TypeVar("PatternWriteNode", CreateClause, MergeClause)
 
 
 def classify_write_declarations(
@@ -98,20 +101,20 @@ def write_property_references(
     return tuple(references)
 
 
-class _PatternWriteRule(SemanticRule):
+class _PatternWriteRule(SemanticRule[PatternWriteNode], Generic[PatternWriteNode]):
     """Bind write patterns, classify declarations and check property references."""
 
     __slots__ = ()
 
     keyword: str = ""
 
-    def _patterns(self, node: CreateClause | MergeClause) -> tuple[PatternElement, ...]:
+    def _patterns(self, node: PatternWriteNode) -> tuple[PatternElement, ...]:
         raise NotImplementedError
 
-    def _classify(self, node: CreateClause | MergeClause, frame: ScopeFrame) -> tuple[WriteDeclaration, ...]:
+    def _classify(self, node: PatternWriteNode, frame: ScopeFrame) -> tuple[WriteDeclaration, ...]:
         return classify_write_declarations(frame, self._patterns(node), self.keyword)
 
-    def validate(self, node: CreateClause | MergeClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: PatternWriteNode, frame: ScopeFrame) -> None:
         self._check_reserved(node, frame)
         declarations = self._classify(node, frame)
         if frame.closed and frame.names is not None:
@@ -123,11 +126,11 @@ class _PatternWriteRule(SemanticRule):
             )
             self._check_actions(node, available)
 
-    def _check_actions(self, node: CreateClause | MergeClause, available: tuple[str, ...] | None) -> None:
+    def _check_actions(self, node: PatternWriteNode, available: tuple[str, ...] | None) -> None:
         """Check attached MERGE actions. CREATE has none."""
 
-    def pattern_role(  # type: ignore[override]
-        self, clause: CreateClause | MergeClause, node_pattern: NodePattern, frame: ScopeFrame, state: PatternState
+    def pattern_role(
+        self, clause: PatternWriteNode, node_pattern: NodePattern, frame: ScopeFrame, state: PatternState
     ) -> DeclarationRole | None:
         if node_pattern.variable is None:
             return DeclarationRole.DECLARE
@@ -140,7 +143,7 @@ class _PatternWriteRule(SemanticRule):
                 return declaration.role
         return None
 
-    def _check_reserved(self, node: CreateClause | MergeClause, frame: ScopeFrame) -> None:
+    def _check_reserved(self, node: PatternWriteNode, frame: ScopeFrame) -> None:
         if not frame.reserved:
             return
         declarations = dict(frame.bindings)
@@ -163,78 +166,78 @@ class _PatternWriteRule(SemanticRule):
                         reject_reserved_redeclaration(relationship.variable.value)
 
 
-class CreateRule(_PatternWriteRule):
+class CreateRule(_PatternWriteRule[CreateClause]):
     """Bind and validate CREATE patterns."""
 
     __slots__ = ()
 
     keyword = "CREATE"
 
-    def _patterns(self, node: CreateClause) -> tuple[PatternElement, ...]:  # type: ignore[override]
+    def _patterns(self, node: CreateClause) -> tuple[PatternElement, ...]:
         return node.patterns
 
-    def bindings(self, frame: ScopeFrame, node: CreateClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: CreateClause) -> ScopeFrame:
         return pattern_transition(frame, node.patterns)
 
 
-class MergeRule(_PatternWriteRule):
+class MergeRule(_PatternWriteRule[MergeClause]):
     """Bind and validate MERGE patterns and their action references."""
 
     __slots__ = ()
 
     keyword = "MERGE"
 
-    def _patterns(self, node: MergeClause) -> tuple[PatternElement, ...]:  # type: ignore[override]
+    def _patterns(self, node: MergeClause) -> tuple[PatternElement, ...]:
         return (node.pattern,)
 
-    def bindings(self, frame: ScopeFrame, node: MergeClause) -> ScopeFrame:  # type: ignore[override]
+    def bindings(self, frame: ScopeFrame, node: MergeClause) -> ScopeFrame:
         return pattern_transition(frame, (node.pattern,))
 
-    def _check_actions(self, node: MergeClause, available: tuple[str, ...] | None) -> None:  # type: ignore[override]
+    def _check_actions(self, node: MergeClause, available: tuple[str, ...] | None) -> None:
         for action in node.actions:
             check_references(action.updates, available, action.keyword)
 
-    def record(self, node: MergeClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
+    def record(self, node: MergeClause, frame: ScopeFrame, sink: AnalysisSink) -> None:
         for action_index, action in enumerate(node.actions, 1):
             for index, update in enumerate(action.updates):
                 if isinstance(update.target, SubscriptExpression):
                     sink.requirement(Capability.DYNAMIC_PROPERTY_WRITES, (*sink.path, action_index, index, 0))
 
 
-class SetRule(SemanticRule):
+class SetRule(SemanticRule[SetClause]):
     """Check SET references and record dynamic property writes."""
 
     __slots__ = ()
 
-    def validate(self, node: SetClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: SetClause, frame: ScopeFrame) -> None:
         check_references(node.updates, reference_names(frame), "SET")
 
-    def record(self, node: SetClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
+    def record(self, node: SetClause, frame: ScopeFrame, sink: AnalysisSink) -> None:
         for index, update in enumerate(node.updates):
             if isinstance(update, Assignment) and isinstance(update.target, SubscriptExpression):
                 sink.requirement(Capability.DYNAMIC_PROPERTY_WRITES, (*sink.path, index, 0))
 
 
-class RemoveRule(SemanticRule):
+class RemoveRule(SemanticRule[RemoveClause]):
     """Check REMOVE references and record dynamic property writes."""
 
     __slots__ = ()
 
-    def validate(self, node: RemoveClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: RemoveClause, frame: ScopeFrame) -> None:
         check_references(node.targets, reference_names(frame), "REMOVE")
 
-    def record(self, node: RemoveClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
+    def record(self, node: RemoveClause, frame: ScopeFrame, sink: AnalysisSink) -> None:
         for index, target in enumerate(node.targets):
             if isinstance(target, SubscriptExpression):
                 sink.requirement(Capability.DYNAMIC_PROPERTY_WRITES, (*sink.path, index))
 
 
-class DeleteRule(SemanticRule):
+class DeleteRule(SemanticRule[DeleteClause]):
     """Check DELETE references without changing the frame."""
 
     __slots__ = ()
 
-    def validate(self, node: DeleteClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+    def validate(self, node: DeleteClause, frame: ScopeFrame) -> None:
         check_references(node.targets, reference_names(frame), "DELETE")
 
 

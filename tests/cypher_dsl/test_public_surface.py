@@ -38,6 +38,7 @@ from cypher_dsl import (
     desc,
     element_id,
     ends_with,
+    exists,
     fn,
     has_label,
     in_,
@@ -115,6 +116,10 @@ RENDERS: dict[str, tuple[object, str]] = {
     "ends_with": (
         match(PERSON).where(ends_with(PERSON["uid"], "1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid ENDS WITH '1' RETURN p",
+    ),
+    "exists": (
+        match(PERSON).where(exists(match(PERSON.relationship_to(node("Dog"), "HAS_DOG")))).returning(PERSON["name"]),
+        "MATCH (p:Person) WHERE EXISTS { MATCH (p:Person)-[:HAS_DOG]->(:Dog) } RETURN p.`name`",
     ),
     "fn": (returning(fn("toUpper", "ada").alias("loud")), "RETURN toUpper('ada') AS loud"),
     "has_label": (

@@ -16,6 +16,7 @@ from cypher_dsl import (
     Condition,
     Configuration,
     ElementId,
+    ExistsExpression,
     Expression,
     FrozenValue,
     FunctionInvocation,
@@ -41,6 +42,7 @@ from cypher_dsl import (
     create,
     desc,
     element_id,
+    exists,
     fn,
     freeze_value,
     in_,
@@ -78,6 +80,7 @@ assert_type(acted_in.relationship_to(movie, "FOLLOWED_BY"), RelationshipPattern)
 assert_type(person.relationship_from(movie, "DIRECTED"), RelationshipPattern)
 assert_type(person.relationship_with(movie, "KNOWS"), RelationshipPattern)
 assert_type(acted_in.as_expression(), Expression)
+assert_type(exists(match(person)), ExistsExpression)
 
 query = match(movie).where(movie["released"] < param("year", 2000)).returning(movie["title"])
 assert_type(query, StatementBuilder)
