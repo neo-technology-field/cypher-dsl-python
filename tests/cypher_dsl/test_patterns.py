@@ -305,3 +305,49 @@ def test_pattern_elements_expose_the_nodes_they_contain():
     assert isinstance(chain, PatternElement)
     assert person.nodes() == (person,)
     assert chain.nodes() == (person, movie, studio)
+
+
+def test_untyped_hops_render_through_each_direction_factory():
+    person = node("Person", name="a")
+    other = node("Person", name="b")
+    assert _pattern(person.relationship_to(other)) == "(a:Person)-->(b:Person)"
+    assert _pattern(person.relationship_from(other)) == "(a:Person)<--(b:Person)"
+    assert _pattern(person.relationship_with(other)) == "(a:Person)--(b:Person)"
+
+
+def test_an_untyped_hop_with_a_variable_renders_the_bracket():
+    person = node("Person", name="a")
+    other = node("Person", name="b")
+    hop = person.relationship_to(other, name="r")
+    assert _pattern(hop) == "(a:Person)-[r]->(b:Person)"
+    assert _pattern(person.relationship_to(other, None, name="r")) == "(a:Person)-[r]->(b:Person)"
+
+
+def test_an_untyped_hop_with_properties_renders_only_the_map():
+    person = node("Person", name="a")
+    other = node("Person", name="b")
+    hop = person.relationship_with(other, properties={"since": 1})
+    assert _pattern(hop) == "(a:Person)-[{since: 1}]-(b:Person)"
+
+
+def test_a_chain_mixes_typed_and_untyped_hops():
+    person = node("Person", name="a")
+    movie = node("Movie", name="m")
+    series = node("Series", name="s")
+    path = person.relationship_to(movie, "ACTED_IN").relationship_with(series)
+    assert _pattern(path) == "(a:Person)-[:ACTED_IN]->(m:Movie)--(s:Series)"
+
+
+def test_a_named_untyped_hop_is_usable_as_an_expression():
+    person = node("Person", name="a")
+    other = node("Person", name="b")
+    hop = person.relationship_to(other, name="r")
+    rendered = Renderer.get(Configuration(server_version="5.26")).render(match(hop).returning(hop))
+    assert rendered.cypher == "MATCH (a:Person)-[r]->(b:Person) RETURN r"
+
+
+def test_an_empty_relationship_type_is_still_rejected():
+    person = node("Person", name="a")
+    other = node("Person", name="b")
+    with pytest.raises(InvalidIdentifierError, match="empty"):
+        person.relationship_to(other, "")

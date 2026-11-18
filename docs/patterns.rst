@@ -141,9 +141,36 @@ from the node they are called on, ``relationship_from`` points towards it, and
     MATCH (p:Person)<-[d:DIRECTED]-(m:Movie) RETURN p.display_name
     MATCH (p:Person)-[:ACTED_IN]-(m:Movie) RETURN p.display_name
 
-A hop is one relationship in the pattern. Each hop carries exactly one type. A read
-pattern may leave the variable out,
-as the third line shows. There is no way to list several types or leave the type out.
+A hop is one relationship in the pattern. The variable is optional in read and write
+patterns alike, as the third line shows. The type is optional in a read pattern, and
+there is no way to list several types on one hop.
+
+.. _untyped-hop:
+
+Omit ``relationship_type`` to match a relationship of any type. The hop renders the
+bare arrow forms, and the variable and property map stay optional inside the brackets:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, match, node
+
+    person = node("Person", name="p")
+    movie = node("Movie", name="m")
+
+    any_type = person.relationship_with(movie)
+    named = person.relationship_to(movie, name="r")
+    dated = person.relationship_from(movie, properties={"since": 1})
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(match(any_type).returning(movie["title"])).cypher)
+    print(renderer.render(match(named).returning(movie["title"])).cypher)
+    print(renderer.render(match(dated).returning(movie["title"])).cypher)
+
+.. code-block:: text
+
+    MATCH (p:Person)--(m:Movie) RETURN m.title
+    MATCH (p:Person)-[r]->(m:Movie) RETURN m.title
+    MATCH (p:Person)<-[{since: 1}]-(m:Movie) RETURN m.title
 
 Extend a chain across several hops
 ----------------------------------
@@ -222,8 +249,9 @@ What to watch out for
 
 - A label is required on every node pattern, and a name that cannot be an identifier is
   rejected when the pattern is built.
-- Every relationship hop carries exactly one type. ``CREATE`` additionally requires a
-  direction, while ``MERGE`` accepts an undirected hop.
+- A read hop may leave the type out (:ref:`untyped hop <untyped-hop>`). ``CREATE`` and
+  ``MERGE`` require exactly one type. ``CREATE`` additionally requires a direction,
+  while ``MERGE`` accepts an undirected hop.
 - A conflicting label or property declaration on a bound endpoint is rejected rather than
   silently discarded.
 - A name that matches a Cypher keyword, such as ``role``, renders backticked. The

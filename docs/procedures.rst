@@ -190,7 +190,8 @@ after ``YIELD``:
 
 .. code-block:: cypher
 
-    CALL dbms.checkConfigValue($setting, $expected) YIELD valid, actual AS observed
+    CALL dbms.checkConfigValue($setting, $expected)
+      YIELD valid, actual AS observed
       WHERE valid = true AND observed IS NOT NULL
     RETURN valid, observed
 

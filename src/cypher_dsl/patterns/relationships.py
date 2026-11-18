@@ -180,7 +180,7 @@ class RelationshipPattern(PatternElement, NamedExpression):
     def relationship_to(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -199,7 +199,7 @@ class RelationshipPattern(PatternElement, NamedExpression):
     def relationship_from(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -218,7 +218,7 @@ class RelationshipPattern(PatternElement, NamedExpression):
     def relationship_with(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -238,7 +238,7 @@ class RelationshipPattern(PatternElement, NamedExpression):
         self,
         target: NodePattern,
         direction: RelationshipDirection,
-        relationship_type: str,
+        relationship_type: str | None,
         name: str | None,
         properties: Mapping[str, ExpressionInput] | Expression | None,
     ) -> RelationshipPattern:
@@ -250,7 +250,7 @@ def relationship_pattern(
     source: NodePattern,
     target: NodePattern,
     direction: RelationshipDirection,
-    relationship_type: str,
+    relationship_type: str | None = None,
     name: str | None = None,
     properties: Mapping[str, ExpressionInput] | Expression | None = None,
 ) -> RelationshipPattern:
@@ -264,7 +264,7 @@ def relationship_pattern(
         source: Node the relationship starts from, as written.
         target: Node at the far end of the relationship.
         direction: Arrow direction between the endpoints.
-        relationship_type: Relationship type to match.
+        relationship_type: Relationship type to match, or ``None`` for an untyped hop.
         name: Optional variable that binds the relationship.
         properties: Explicit property entries, whole-map expression, or ``None``.
 
@@ -287,7 +287,7 @@ def _relationship(
     source: NodePattern,
     target: NodePattern,
     direction: RelationshipDirection,
-    relationship_type: str,
+    relationship_type: str | None,
     name: str | None,
     properties: Mapping[str, ExpressionInput] | Expression | None,
 ) -> Relationship:
@@ -295,7 +295,7 @@ def _relationship(
         left=source,
         right=target,
         direction=direction,
-        relationship_type=SymbolicName(relationship_type),
+        relationship_type=None if relationship_type is None else SymbolicName(relationship_type),
         variable=None if name is None else SymbolicName(name),
         properties=coerce_pattern_properties(properties),
     )

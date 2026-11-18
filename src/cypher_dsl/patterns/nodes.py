@@ -252,7 +252,7 @@ class NodePattern(PatternElement, NamedExpression):
     def relationship_to(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -261,7 +261,7 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the far end of the relationship.
-            relationship_type: Relationship type to match.
+            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 
@@ -279,7 +279,7 @@ class NodePattern(PatternElement, NamedExpression):
     def relationship_from(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -288,7 +288,7 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the source of the incoming relationship.
-            relationship_type: Relationship type to match.
+            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 
@@ -306,7 +306,7 @@ class NodePattern(PatternElement, NamedExpression):
     def relationship_with(
         self,
         target: NodePattern,
-        relationship_type: str,
+        relationship_type: str | None = None,
         name: str | None = None,
         properties: Mapping[str, ExpressionInput] | Expression | None = None,
     ) -> RelationshipPattern:
@@ -315,7 +315,7 @@ class NodePattern(PatternElement, NamedExpression):
 
         Args:
             target: Node pattern at the other end of the relationship.
-            relationship_type: Relationship type to match.
+            relationship_type: Relationship type to match, or ``None`` for an untyped hop.
             name: Optional variable that binds the relationship.
             properties: Explicit property entries, whole-map expression, or ``None``.
 

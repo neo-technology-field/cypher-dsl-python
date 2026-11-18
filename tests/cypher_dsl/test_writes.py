@@ -375,6 +375,13 @@ def test_untyped_match_and_typed_undirected_merge_remain_valid():
     assert render(merge(first.relationship_with(second, "KNOWS"))) == "MERGE (a:Person)-[:KNOWS]-(b:Person)"
 
 
+@pytest.mark.parametrize("operation", ["create", "merge"])
+def test_a_write_hop_may_leave_the_relationship_variable_out(operation):
+    person, other = node("Person", name="a"), node("Person", name="b")
+    statement = getattr(match(person), operation)(person.relationship_to(other, "KNOWS"))
+    assert render(statement) == f"MATCH (a:Person) {operation.upper()} (a)-[:KNOWS]->(b:Person)"
+
+
 def _dynamic_write(operation):
     person = node("Person", name="p")
     target = person[param("key", "given")]
@@ -525,3 +532,11 @@ def test_upstream_merge_after_match_references_the_bound_node():
     assert _render_forced_escaping(match(user).merge(user.relationship_to(bike, "OWNS", name="o"))) == (
         "MATCH (`u`:`User`) MERGE (`u`)-[`o`:`OWNS`]->(`b`:`Bike`)"
     )
+
+
+@pytest.mark.parametrize("operation", ["create", "merge"])
+def test_write_rejects_an_untyped_hop_from_the_factory(operation):
+    person = node("Person", name="p")
+    other = node("Person", name="q")
+    with pytest.raises(DslError, match=rf"{operation.upper()} relationships need exactly one"):
+        getattr(match(person), operation)(person.relationship_to(other))
