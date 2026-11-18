@@ -147,6 +147,7 @@ the syntax family:
 | `DYNAMIC_LABELS`          | none             | 5.26            |
 | `VECTOR_SEARCH`           | Cypher 25        | 2026.01         |
 | `FULLTEXT_SEARCH`         | Cypher 25        | 2026.09         |
+| `IS_LABELED`              | Cypher 25        | 2026.04         |
 
 The dynamic label floor groups node-pattern label and relationship-type syntax (5.26) with `SET` and
 `REMOVE` label writes (5.24).

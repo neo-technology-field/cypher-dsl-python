@@ -25,6 +25,7 @@ EXPECTED_FLOORS = {
     Capability.DYNAMIC_LABELS: CapabilityFloor(None, ServerVersion(5, 26)),
     Capability.VECTOR_SEARCH: CapabilityFloor(Language.CYPHER_25, ServerVersion(2026, 1)),
     Capability.FULLTEXT_SEARCH: CapabilityFloor(Language.CYPHER_25, ServerVersion(2026, 9)),
+    Capability.IS_LABELED: CapabilityFloor(Language.CYPHER_25, ServerVersion(2026, 4)),
 }
 
 
@@ -41,6 +42,14 @@ def test_floors_compare_across_the_calendar_boundary() -> None:
 def test_fulltext_search_floor_is_2026_09() -> None:
     assert capability_available(Capability.FULLTEXT_SEARCH, ServerVersion.parse("2026.08")) is False
     assert capability_available(Capability.FULLTEXT_SEARCH, ServerVersion.parse("2026.09")) is True
+
+
+def test_is_labeled_floor_is_2026_04_cypher_25() -> None:
+    floor = floor_for(Capability.IS_LABELED)
+    assert floor.language is Language.CYPHER_25
+    assert floor.release == ServerVersion.parse("2026.04")
+    assert capability_available(Capability.IS_LABELED, ServerVersion.parse("2026.03")) is False
+    assert capability_available(Capability.IS_LABELED, ServerVersion.parse("2026.04")) is True
 
 
 def test_language_and_support_floors() -> None:

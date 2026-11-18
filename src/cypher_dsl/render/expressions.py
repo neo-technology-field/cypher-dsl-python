@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from cypher_dsl.expressions.base import Expression, Precedence
 from cypher_dsl.expressions.collections import ListExpression, MapExpression
 from cypher_dsl.expressions.functions import Asterisk, ElementId, FunctionInvocation, RawExpression
+from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, UnaryOperation, _ConditionOperand
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.values import (
@@ -86,6 +87,19 @@ def condition_operand(node: _ConditionOperand, children: tuple[Fragment, ...], c
     return children[0].text
 
 
+def has_label(node: HasLabel, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render the colon form of a label predicate without outer parentheses."""
+    operand = grouped(children[0], Precedence.ATOM, close_equal=False)
+    return f"{operand}:{children[1].text}"
+
+
+def is_labeled(node: IsLabeled, children: tuple[Fragment, ...], context: RenderContext) -> str:
+    """Render the ``IS [NOT] LABELED`` form of a label predicate."""
+    operator = "IS NOT LABELED" if node.negated else "IS LABELED"
+    operand = grouped(children[0], Precedence.ATOM, close_equal=False)
+    return context.layout.tokens(operand, operator, children[1].text)
+
+
 def property(node: Property, children: tuple[Fragment, ...], context: RenderContext) -> str:
     """Render static property access on a structurally grouped base expression."""
     base = grouped(children[0], Precedence.ATOM, close_equal=False)
@@ -161,6 +175,8 @@ def expression_bindings() -> tuple[RuleBinding, ...]:
         bind(BinaryOperation, binary_operation),
         bind(UnaryOperation, unary_operation),
         bind(_ConditionOperand, condition_operand),
+        bind(HasLabel, has_label),
+        bind(IsLabeled, is_labeled),
         bind(Property, property),
         bind(SubscriptExpression, subscript_expression),
         bind(ListExpression, list_expression),

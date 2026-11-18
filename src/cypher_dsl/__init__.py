@@ -21,7 +21,10 @@ from cypher_dsl.api import (
     element_id,
     ends_with,
     fn,
+    has_label,
     in_,
+    is_labeled,
+    is_not_labeled,
     label,
     list_,
     lit,
@@ -69,6 +72,7 @@ from cypher_dsl.expressions.base import (
 )
 from cypher_dsl.expressions.collections import ListExpression, MapExpression
 from cypher_dsl.expressions.functions import Asterisk, ElementId, FunctionInvocation, RawExpression
+from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, Condition, UnaryOperation
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.values import (
@@ -112,6 +116,8 @@ __all__ = [
     "ExpressionInput",
     "FrozenValue",
     "FunctionInvocation",
+    "HasLabel",
+    "IsLabeled",
     "LabelUpdate",
     "Language",
     "ListExpression",
@@ -167,7 +173,10 @@ __all__ = [
     "ends_with",
     "fn",
     "freeze_value",
+    "has_label",
     "in_",
+    "is_labeled",
+    "is_not_labeled",
     "label",
     "list_",
     "lit",

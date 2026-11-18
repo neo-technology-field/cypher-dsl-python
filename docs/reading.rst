@@ -222,6 +222,84 @@ server-side types, so the caller states that the value is a predicate:
 
     MATCH (p:Person) WHERE $active RETURN p
 
+.. _label-expression-predicate:
+
+Test labels and types in a filter or projection
+-----------------------------------------------
+
+A :ref:`label expression <label-expression>` also works in an expression position.
+``has_label`` takes the element to test and one label or type name, or a label
+expression built from ``label()`` terms. The element is a named pattern or any
+expression, and a relationship is tested the same way as a node:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        has_label,
+        label,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    report = node("Person", name="c").relationship_to(person, name="r")
+    statement = (
+        match(report)
+        .where(has_label(person, label("Manager") | label("Director")))
+        .returning(
+            person["uid"], has_label(report, "WORKS_FOR").alias("reports")
+        )
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (c:Person)-[r]->(p:Person) WHERE p:Manager|Director
+    RETURN p.uid, r:WORKS_FOR AS reports
+
+The predicate is an ordinary condition, so ``&``, ``|`` and ``~`` combine it with other
+predicates, and a projection can return it under an alias.
+
+``is_labeled`` and ``is_not_labeled`` render the ``IS [NOT] LABELED`` form, which
+Neo4j 2026.04 introduced for Cypher 25. ``IS NOT LABELED`` negates the whole label
+expression, which differs from ``~`` on one term: ``p IS NOT LABELED A&B`` is false
+for a node with both labels, while ``p:!A&B`` asks for ``B`` without ``A``:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        is_labeled,
+        is_not_labeled,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(is_not_labeled(person, "CEO"))
+        .returning(is_labeled(person, "Manager").alias("isManager"))
+    )
+
+    renderer = Renderer.get(Configuration(server_version="2026.10"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    CYPHER 25
+    MATCH (p:Person) WHERE p IS NOT LABELED CEO
+    RETURN p IS LABELED Manager AS isManager
+
+A statement that uses one of the two selects the ``CYPHER 25`` prefix under
+``Language.AUTO`` and is refused against an older release or a ``CYPHER 5`` pin.
+See :doc:`targets`.
+
 Filter an UNWIND through WITH
 -----------------------------
 

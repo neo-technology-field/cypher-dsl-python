@@ -14,6 +14,7 @@ from cypher_dsl.statements.rules.base import (
 )
 from cypher_dsl.statements.rules.call import CallRule, ProcedureCallRule
 from cypher_dsl.statements.rules.flow import UnionRule, UnwindRule
+from cypher_dsl.statements.rules.labels import IsLabeledRule
 from cypher_dsl.statements.rules.match import MatchRule
 from cypher_dsl.statements.rules.projection import ProjectionRule
 from cypher_dsl.statements.rules.writes import CreateRule, DeleteRule, MergeRule, RemoveRule, SetRule
@@ -22,6 +23,7 @@ __all__ = [
     "CallRule",
     "CreateRule",
     "DeleteRule",
+    "IsLabeledRule",
     "MatchRule",
     "MergeRule",
     "PatternState",
@@ -51,12 +53,16 @@ def shared_rules() -> dict[type, SemanticRule]:
     from cypher_dsl.clauses.projection import ReturnClause, WithClause
     from cypher_dsl.clauses.unwind import UnwindClause
     from cypher_dsl.clauses.write import CreateClause, DeleteClause, MergeClause, RemoveClause, SetClause
+    from cypher_dsl.expressions.labels import IsLabeled
     from cypher_dsl.statements.composition import UnionStatement
 
     projection = ProjectionRule()
     return {
         CreateClause: CreateRule(),
         DeleteClause: DeleteRule(),
+        # The label predicate is the first non-clause rule: it records a capability
+        # requirement rather than frame bindings.
+        IsLabeled: IsLabeledRule(),
         MatchClause: MatchRule(),
         MergeClause: MergeRule(),
         ProcedureCallClause: ProcedureCallRule(),

@@ -184,6 +184,10 @@ union is the useful form, and ``ANY_LABEL`` matches any typed relationship:
 - The legacy ``:A|:B`` spelling is not a union: it is one type name, so it renders quoted
   and matches only a type with that literal name.
 
+The same terms test an element that is already bound, in an expression position such as
+``WHERE`` or ``RETURN``: see
+:ref:`label expression predicates <label-expression-predicate>`.
+
 Connect two patterns
 --------------------
 

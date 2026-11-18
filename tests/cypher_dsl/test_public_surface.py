@@ -39,7 +39,10 @@ from cypher_dsl import (
     element_id,
     ends_with,
     fn,
+    has_label,
     in_,
+    is_labeled,
+    is_not_labeled,
     label,
     list_,
     lit,
@@ -114,6 +117,10 @@ RENDERS: dict[str, tuple[object, str]] = {
         "MATCH (p:Person) WHERE p.uid ENDS WITH '1' RETURN p",
     ),
     "fn": (returning(fn("toUpper", "ada").alias("loud")), "RETURN toUpper('ada') AS loud"),
+    "has_label": (
+        match(PERSON).where(has_label(PERSON, "Manager")).returning(PERSON["uid"]),
+        "MATCH (p:Person) WHERE p:Manager RETURN p.uid",
+    ),
     "in_": (
         match(PERSON).where(in_(PERSON["uid"], list_("p1", "p2"))).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid IN ['p1', 'p2'] RETURN p",
@@ -170,6 +177,19 @@ RENDERS: dict[str, tuple[object, str]] = {
     "with_": (
         with_(PERSON["uid"].alias("uid")).returning(name("uid")),
         "WITH p.uid AS uid RETURN uid",
+    ),
+}
+
+FLOOR_RENDERS: dict[str, tuple[object, str, str]] = {
+    "is_labeled": (
+        match(PERSON).where(is_labeled(PERSON, "Manager")).returning(PERSON["uid"]),
+        "CYPHER 25 MATCH (p:Person) WHERE p IS LABELED Manager RETURN p.uid",
+        "2026.10",
+    ),
+    "is_not_labeled": (
+        match(PERSON).where(is_not_labeled(PERSON, "CEO")).returning(PERSON["uid"]),
+        "CYPHER 25 MATCH (p:Person) WHERE p IS NOT LABELED CEO RETURN p.uid",
+        "2026.10",
     ),
 }
 
@@ -240,6 +260,7 @@ def _walk(node: object) -> typing.Iterator[object]:
 def _produced() -> list[object]:
     produced = [value for value, _ in RENDERS.values()]
     produced.extend(value for value, _ in VALUES.values())
+    produced.extend(value for value, _, _ in FLOOR_RENDERS.values())
     produced.extend(EXTRA_OBJECTS)
     nodes: list[object] = []
     for value in list(produced):
@@ -257,12 +278,18 @@ def test_every_public_name_resolves() -> None:
 
 
 def test_every_public_function_has_an_example() -> None:
-    assert set(RENDERS) | set(VALUES) == _public_functions()
+    assert set(RENDERS) | set(VALUES) | set(FLOOR_RENDERS) == _public_functions()
 
 
 def test_rendered_statements_match_their_expectations() -> None:
     for function_name, (query, expected) in RENDERS.items():
         assert RENDERER.render(query).cypher == expected, function_name
+
+
+def test_floor_rendered_statements_match_their_expectations() -> None:
+    for function_name, (query, expected, server_version) in FLOOR_RENDERS.items():
+        renderer = Renderer.get(Configuration(server_version=server_version))
+        assert renderer.render(query).cypher == expected, function_name
 
 
 def test_answered_values_match_their_expectations() -> None:

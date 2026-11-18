@@ -85,7 +85,14 @@ a parameter needs ``condition()``.
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration, Renderer, match, node, param, starts_with
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        match,
+        node,
+        param,
+        starts_with,
+    )
 
     person = node("Person", name="p")
     statement = (
@@ -103,6 +110,59 @@ a parameter needs ``condition()``.
 
     MATCH (p:Person) WHERE p.age < $max_age AND p.uid STARTS WITH 'A'
     RETURN p.uid
+
+``has_label`` tests a node's labels or a relationship's type against a
+:ref:`label expression <label-expression>`. The colon form works on every supported
+release:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        has_label,
+        label,
+        match,
+        node,
+    )
+
+    person = node("Person", name="p")
+    report = node("Person", name="c").relationship_to(person, name="r")
+    statement = (
+        match(report)
+        .where(has_label(person, label("Manager") | label("Director")))
+        .returning(
+            person["uid"], has_label(report, "WORKS_FOR").alias("reports")
+        )
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (c:Person)-[r]->(p:Person) WHERE p:Manager|Director
+    RETURN p.uid, r:WORKS_FOR AS reports
+
+``is_labeled`` and ``is_not_labeled`` render the ``IS [NOT] LABELED`` form, which
+Neo4j 2026.04 introduced for Cypher 25. Under ``Language.AUTO`` the statement then
+selects the ``CYPHER 25`` prefix:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, is_not_labeled, match, node
+
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(is_not_labeled(person, "CEO"))
+        .returning(person["uid"])
+    )
+    renderer = Renderer.get(Configuration(server_version="2026.10"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    CYPHER 25 MATCH (p:Person) WHERE p IS NOT LABELED CEO RETURN p.uid
 
 ``RETURN``
 ~~~~~~~~~~
@@ -212,7 +272,14 @@ labels.
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration, Renderer, assign, match, node, set_labels
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        assign,
+        match,
+        node,
+        set_labels,
+    )
 
     person = node("Person", name="p")
     statement = (
@@ -379,10 +446,15 @@ clause always renders, and ``imports`` or ``import_all`` pass outer names in.
     person = node("Person", name="p")
     movie = node("Movie", name="m")
     acted = person.relationship_to(movie, "ACTED_IN")
-    body = match(acted).returning(movie["title"].alias("title")).build()
-    statement = match(person).call(body, imports=("p",)).returning(name("title"))
-    renderer = Renderer.get(Configuration(
-                 server_version="5.26", pretty_print=True))
+    body = match(acted).returning(
+        movie["title"].alias("title")
+    ).build()
+    statement = match(person).call(
+        body, imports=("p",)
+    ).returning(name("title"))
+    renderer = Renderer.get(
+        Configuration(server_version="5.26", pretty_print=True)
+    )
     print(renderer.render(statement).cypher)
 
 .. code-block:: cypher
@@ -403,7 +475,15 @@ modifier, or a positive row count for ``OF ... ROWS``.
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration, Renderer, create, fn, name, node, unwind
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        create,
+        fn,
+        name,
+        node,
+        unwind,
+    )
 
     body = create(node("Clone", properties={"uid": name("item")})).build()
     statement = (
@@ -411,7 +491,9 @@ modifier, or a positive row count for ``OF ... ROWS``.
         .call(body, imports=("item",), in_transactions=5_000)
         .returning(name("item"))
     )
-    renderer = Renderer.get(Configuration(server_version="5.26", pretty_print=True))
+    renderer = Renderer.get(
+        Configuration(server_version="5.26", pretty_print=True)
+    )
     print(renderer.render(statement).cypher)
 
 .. code-block:: cypher
@@ -477,7 +559,14 @@ cover ``count(...)``, ``elementId(...)`` and the ``*`` projection:
 
 .. code-block:: python
 
-    from cypher_dsl import Configuration, Renderer, count, element_id, match, node
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        count,
+        element_id,
+        match,
+        node,
+    )
 
     person = node("Person", name="p")
     statement = match(person).returning(
@@ -503,8 +592,6 @@ declaration is too old.
 Not yet
 -------
 
-- ``WHERE n:Label``, ``n IS LABELED A|B``, ``n IS NOT LABELED A`` — label expression
-  predicates in expression positions.
 - ``EXISTS { MATCH ... }`` — an existential subquery.
 - ``(a)-[:R]->(b)`` as a boolean — a path pattern expression.
 - ``COUNT { ... }`` and ``COLLECT { ... }`` — subquery expressions.

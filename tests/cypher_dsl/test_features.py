@@ -20,4 +20,5 @@ def test_capability_identities_are_unchanged() -> None:
         "DYNAMIC_PROPERTY_WRITES",
         "VECTOR_SEARCH",
         "FULLTEXT_SEARCH",
+        "IS_LABELED",
     }

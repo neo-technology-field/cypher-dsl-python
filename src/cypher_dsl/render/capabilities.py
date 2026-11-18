@@ -82,6 +82,9 @@ SUPPORTED_RELEASE_MINIMUM: Final = ServerVersion(5, 26)
 CYPHER_25_MINIMUM = ServerVersion(2025, 6)
 VECTOR_SEARCH_MINIMUM = ServerVersion(2026, 1)
 FULLTEXT_SEARCH_MINIMUM = ServerVersion(2026, 9)
+# IS [NOT] LABELED label predicates arrived in 2026.04, Cypher 25 only:
+# https://neo4j.com/docs/cypher-manual/current/expressions/predicates/label-expression-predicates/
+IS_LABELED_MINIMUM = ServerVersion(2026, 4)
 # The variable scope clause arrived in 5.23:
 # https://neo4j.com/docs/cypher-manual/5/deprecations-additions-removals-compatibility/#cypher-deprecations-additions-removals-5.23
 SCOPE_CLAUSES_MINIMUM = ServerVersion(5, 23)
@@ -153,6 +156,7 @@ _CAPABILITY_FLOORS: Final = {
     Capability.DYNAMIC_LABELS: CapabilityFloor(None, DYNAMIC_LABELS_MINIMUM),
     Capability.VECTOR_SEARCH: CapabilityFloor(Language.CYPHER_25, VECTOR_SEARCH_MINIMUM),
     Capability.FULLTEXT_SEARCH: CapabilityFloor(Language.CYPHER_25, FULLTEXT_SEARCH_MINIMUM),
+    Capability.IS_LABELED: CapabilityFloor(Language.CYPHER_25, IS_LABELED_MINIMUM),
 }
 
 
@@ -175,6 +179,7 @@ __all__ = [
     "DYNAMIC_PROPERTY_WRITES_MINIMUM",
     "FULLTEXT_SEARCH_MINIMUM",
     "IN_TRANSACTIONS_MINIMUM",
+    "IS_LABELED_MINIMUM",
     "OPTIONAL_CALL_MINIMUM",
     "SCOPE_CLAUSES_MINIMUM",
     "SUPPORTED_RELEASE_MINIMUM",
