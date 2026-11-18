@@ -1,5 +1,9 @@
 """
-The ``CALL`` subquery clause.
+The ``CALL`` clause in its subquery and procedure-call forms.
+
+The two forms are the subquery call, which runs a statement in its own scope, and the
+procedure call, which invokes a stored procedure and binds the columns it yields. A
+procedure call may filter its yielded rows with a predicate.
 
 A subquery call runs a finalised statement once per incoming row in its own scope. The
 outer variables enter the body only through the variable scope clause the call renders,
@@ -10,14 +14,15 @@ rendering decision.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, require_operand
-from cypher_dsl.expressions.values import Literal, SymbolicName, Variable, validate_name
+from cypher_dsl.expressions.operators import Condition
+from cypher_dsl.expressions.values import AliasedExpression, Literal, SymbolicName, Variable, validate_name
 from cypher_dsl.statements.composition import Statement, UnionStatement
 
 if TYPE_CHECKING:
@@ -98,6 +103,106 @@ class SubqueryCallClause(Clause):
     def children(self) -> tuple[AstNode, ...]:
         """Expose the body and the row-count expression in rendered order."""
         return (self.subquery,) if self.of_rows is None else (self.subquery, self.of_rows)
+
+
+@dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
+class ProcedureCallClause(Clause):
+    """
+    Invoke a stored procedure and bind the columns it yields.
+
+    A call without ``OPTIONAL`` keeps only the rows the procedure produces. ``OPTIONAL``
+    keeps an incoming row alive with ``null`` bindings when the procedure produces no row
+    for it, the same way ``OPTIONAL MATCH`` does. A predicate filters the yielded rows, so
+    it is meaningful only after at least one yield item.
+
+    Attributes:
+        name: Procedure name segments in call order. ``db.labels`` is two segments.
+        arguments: Argument expressions, in call order.
+        optional: Render ``OPTIONAL CALL`` so rows without procedure output survive with
+            ``null`` bindings.
+        yields: Columns the call binds, each a variable or a variable under one alias. An
+            empty tuple binds nothing.
+        predicate: Filter applied to the yielded rows, rendered after ``YIELD``. It
+            requires at least one yield item.
+    """
+
+    name: tuple[str, ...]
+    arguments: tuple[Expression, ...]
+    optional: bool
+    yields: tuple[Variable | AliasedExpression, ...] = ()
+    predicate: Expression | None = None
+
+    def __post_init__(self) -> None:
+        """
+        Reject a name, argument, yield list or predicate the clause cannot hold.
+
+        Raises:
+            DslError: If the name is not a non-empty tuple of strings, the flag is not a
+                boolean, a collection is not a tuple, an argument or predicate is not an
+                expression or is an alias, a yield item is not a variable or an alias of a
+                variable, two yield items bind the same name, or a predicate is set
+                without yield items.
+            InvalidIdentifierError: If a name segment cannot be an identifier.
+        """
+        if not isinstance(self.name, tuple) or any(not isinstance(segment, str) for segment in self.name):
+            raise DslError(
+                f"CALL needs a procedure name as a tuple of string segments, not {type(self.name).__name__}."
+            )
+        if not self.name:
+            raise DslError("CALL needs a procedure name with at least one segment.")
+        for segment in self.name:
+            validate_name(segment)
+        if not isinstance(self.optional, bool):
+            raise DslError(f"optional is a boolean choice, not {type(self.optional).__name__}.")
+        _require_tuple(self.arguments, "CALL arguments")
+        _require_tuple(self.yields, "CALL yields")
+        for argument in self.arguments:
+            if not isinstance(argument, Expression):
+                raise DslError(f"CALL arguments need expressions, not {type(argument).__name__}.")
+            require_operand(argument)
+        seen: set[str] = set()
+        for item in self.yields:
+            if isinstance(item, Variable):
+                binding = item.symbol.value
+            elif isinstance(item, AliasedExpression):
+                if not isinstance(item.expression, Variable):
+                    raise DslError(
+                        f"CALL YIELD aliases a variable, not {type(item.expression).__name__}. Alias a plain name()."
+                    )
+                binding = item.alias_name.value
+            else:
+                raise DslError(f"CALL YIELD takes a variable or an aliased variable, not {type(item).__name__}.")
+            if binding in seen:
+                raise DslError(f"CALL YIELD already binds {binding!r}. Give each yielded column a distinct name.")
+            seen.add(binding)
+        if self.predicate is None:
+            return
+        if not self.yields:
+            raise DslError("A CALL predicate filters YIELD output. Pass the yield items before the predicate.")
+        if not isinstance(self.predicate, Expression):
+            raise DslError(f"CALL predicate needs an expression, not {type(self.predicate).__name__}.")
+        require_operand(self.predicate)
+
+    def children(self) -> tuple[AstNode, ...]:
+        """Expose the arguments, the yield items and the predicate in rendered order."""
+        renderable: tuple[AstNode, ...] = (*self.arguments, *self.yields)
+        return renderable if self.predicate is None else (*renderable, self.predicate)
+
+    def with_where(self, predicate: Condition) -> ProcedureCallClause:
+        """
+        Return a copy whose single attached filter also requires ``predicate``.
+
+        Consecutive filters join with ``AND`` because the call has one filter position
+        after ``YIELD``. Returning a copy keeps every other clause value shareable.
+
+        Args:
+            predicate: Additional condition.
+
+        Returns:
+            A new clause with one combined filter.
+        """
+        combined = predicate if self.predicate is None else self.predicate & predicate
+        return replace(self, predicate=combined)
 
 
 def _coerce_import(item: object) -> Variable:
@@ -214,4 +319,60 @@ def optional_call(
     )
 
 
-__all__ = ["SubqueryCallClause", "call", "optional_call"]
+def call_procedure(procedure_name: str, *arguments: ExpressionInput) -> StatementBuilder:
+    """
+    Start a statement whose only clause calls a stored procedure.
+
+    The name is one dot-qualified string, split on dots the same way :func:`fn` splits a
+    function name. The call binds nothing without ``YIELD`` items, and a call without
+    them is finalisable without a ``RETURN``.
+
+    Args:
+        procedure_name: Dot-qualified procedure name, such as ``db.labels``.
+        arguments: Argument expressions or literal values. A bare string is a literal,
+            not a name.
+
+    Returns:
+        A new builder whose only clause is the ``CALL``.
+
+    Raises:
+        DslError: If an argument cannot be an expression or is an alias.
+        InvalidIdentifierError: If a name segment cannot be an identifier.
+    """
+    from cypher_dsl.statements.builder import StatementBuilder
+
+    return StatementBuilder().call_procedure(procedure_name, *arguments)
+
+
+def optional_call_procedure(procedure_name: str, *arguments: ExpressionInput) -> StatementBuilder:
+    """
+    Start a statement whose only clause optionally calls a stored procedure.
+
+    ``OPTIONAL CALL`` keeps an incoming row alive with ``null`` bindings when the
+    procedure produces no row for it, the same way ``OPTIONAL MATCH`` does.
+
+    Args:
+        procedure_name: Dot-qualified procedure name, such as ``db.labels``.
+        arguments: Argument expressions or literal values. A bare string is a literal,
+            not a name.
+
+    Returns:
+        A new builder whose only clause is the ``OPTIONAL CALL``.
+
+    Raises:
+        DslError: If an argument cannot be an expression or is an alias.
+        InvalidIdentifierError: If a name segment cannot be an identifier.
+    """
+    from cypher_dsl.statements.builder import StatementBuilder
+
+    return StatementBuilder().optional_call_procedure(procedure_name, *arguments)
+
+
+__all__ = [
+    "ProcedureCallClause",
+    "SubqueryCallClause",
+    "call",
+    "call_procedure",
+    "optional_call",
+    "optional_call_procedure",
+]

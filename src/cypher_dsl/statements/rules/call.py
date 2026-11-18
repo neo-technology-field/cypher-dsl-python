@@ -1,16 +1,18 @@
-"""The CALL rule: import scope, body validation, output scope and requirements."""
+"""The CALL rules: subquery import scope and procedure yield bindings."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cypher_dsl.clauses.call import SubqueryCallClause
+from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
 from cypher_dsl.errors import DslError
+from cypher_dsl.expressions.values import AliasedExpression
 from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import _same_node_declaration
-from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names
+from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names, reference_names
 from cypher_dsl.statements.rules.base import (
     SemanticRule,
+    check_references,
     frame_after,
     reject_reserved_redeclaration,
     walk_clauses,
@@ -101,6 +103,51 @@ class CallRule(SemanticRule):
             sink.requirement(Capability.IN_TRANSACTIONS)
 
 
+class ProcedureCallRule(SemanticRule):
+    """Bind the names a procedure call yields and check the call against its frame."""
+
+    __slots__ = ()
+
+    def bindings(self, frame: ScopeFrame, node: ProcedureCallClause) -> ScopeFrame:  # type: ignore[override]
+        if frame.names is None or not node.yields:
+            return frame
+        return ScopeFrame(
+            merge_names(frame.names, _yielded_bindings(node)),
+            frame.closed,
+            frame.certified,
+            frame.reserved,
+            frame.bindings,
+            frame.unresolved,
+        )
+
+    def validate(self, node: ProcedureCallClause, frame: ScopeFrame) -> None:  # type: ignore[override]
+        check_references(node.arguments, reference_names(frame), "CALL")
+        bindings = _yielded_bindings(node)
+        for binding in bindings:
+            if binding in frame.reserved:
+                reject_reserved_redeclaration(binding)
+            if frame.names is not None and binding in frame.names:
+                raise DslError(
+                    f"CALL YIELD binds {binding!r}, which the outer query already holds. "
+                    "Rename the yielded item so the outer scope keeps one binding."
+                )
+        if node.predicate is None:
+            return
+        names = reference_names(frame)
+        check_references((node.predicate,), None if names is None else merge_names(names, bindings), "CALL")
+
+    def record(self, node: ProcedureCallClause, frame: ScopeFrame, sink: AnalysisSink) -> None:  # type: ignore[override]
+        if node.optional:
+            sink.requirement(Capability.OPTIONAL_CALL)
+
+
+def _yielded_bindings(node: ProcedureCallClause) -> tuple[str, ...]:
+    """Return the name each yield item binds, the alias when one is present."""
+    return tuple(
+        item.alias_name.value if isinstance(item, AliasedExpression) else item.symbol.value for item in node.yields
+    )
+
+
 def output_scope(subquery: Statement | UnionStatement, initial: ScopeFrame) -> ScopeFrame:
     """Return the final projection's names and node identities, or an empty frame for a unit body."""
     from cypher_dsl.clauses.projection import ReturnClause
@@ -141,4 +188,4 @@ def output_scope(subquery: Statement | UnionStatement, initial: ScopeFrame) -> S
     return ScopeFrame(names, True, True, initial.reserved, tuple(bindings.items()), unresolved)
 
 
-__all__ = ["CallRule", "output_scope"]
+__all__ = ["CallRule", "ProcedureCallRule", "output_scope"]

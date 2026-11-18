@@ -262,7 +262,7 @@ def test_every_clause_class_has_a_semantic_rule() -> None:
     import cypher_dsl.clauses
     from cypher_dsl import assign, create, lit, merge, returning, unwind, with_
     from cypher_dsl.clauses.base import Clause
-    from cypher_dsl.clauses.call import SubqueryCallClause
+    from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause, call_procedure
     from cypher_dsl.clauses.match import MatchClause
     from cypher_dsl.clauses.projection import ProjectionClause, ReturnClause, WithClause
     from cypher_dsl.clauses.unwind import UnwindClause
@@ -282,6 +282,7 @@ def test_every_clause_class_has_a_semantic_rule() -> None:
         match(person).remove(person["uid"]).build(),
         match(person).delete(person).build(),
         match(person).call(body, imports=("p",)).returning(name("one")).build(),
+        call_procedure("db.labels").build(),
     )
     seen: set[type[Clause]] = set()
     for statement in statements:
@@ -299,6 +300,7 @@ def test_every_clause_class_has_a_semantic_rule() -> None:
         RemoveClause,
         DeleteClause,
         SubqueryCallClause,
+        ProcedureCallClause,
     }
 
     discovered: set[type[Clause]] = set()
@@ -586,6 +588,87 @@ def test_call_bindings_add_outputs_but_not_unit_body_declarations() -> None:
     assert after.reserved == frame.reserved
     unit = SubqueryCallClause(create(movie).build())
     assert rule.bindings(frame, unit) == frame
+
+
+def test_procedure_call_bindings_add_yielded_names_without_node_declarations() -> None:
+    from cypher_dsl.clauses.call import ProcedureCallClause
+    from cypher_dsl.statements.rules.call import ProcedureCallRule
+
+    person = node("Person", name="p")
+    frame = ScopeFrame(("p",), reserved=frozenset({"p"}), bindings=(("p", person),))
+    rule = ProcedureCallRule()
+    plain = ProcedureCallClause(("db", "labels"), (), optional=False, yields=(name("label"),))
+    aliased = ProcedureCallClause(
+        ("db", "propertyKeys"), (), optional=False, yields=(name("propertyKey").alias("prop"),)
+    )
+    assert rule.bindings(frame, plain).names == ("p", "label")
+    assert rule.bindings(frame, aliased).names == ("p", "prop")
+    after = rule.bindings(frame, plain)
+    assert after.bindings == frame.bindings
+    assert after.closed is False
+    assert after.certified is False
+    assert after.reserved == frame.reserved
+    assert after.unresolved == frame.unresolved
+    assert rule.bindings(frame, ProcedureCallClause(("db", "labels"), (), optional=False)) == frame
+    assert rule.bindings(ScopeFrame(None), plain) == ScopeFrame(None)
+
+
+def test_procedure_call_rejects_yield_collisions_and_reserved_names() -> None:
+    from cypher_dsl.clauses.call import ProcedureCallClause
+    from cypher_dsl.statements.rules.call import ProcedureCallRule
+
+    clause = ProcedureCallClause(("db", "labels"), (), optional=False, yields=(name("p"),))
+    rule = ProcedureCallRule()
+    with pytest.raises(DslError, match="which the outer query already holds"):
+        rule.validate(clause, ScopeFrame(("p",), closed=True))
+    with pytest.raises(DslError, match="redeclares imported name 'p'"):
+        rule.validate(clause, ScopeFrame((), closed=True, reserved=frozenset({"p"})))
+
+
+def test_procedure_call_checks_arguments_and_the_predicate_scope() -> None:
+    from cypher_dsl.clauses.call import ProcedureCallClause
+    from cypher_dsl.statements.rules.call import ProcedureCallRule
+
+    rule = ProcedureCallRule()
+    unknown_argument = ProcedureCallClause(("db", "labels"), (name("missing"),), optional=False)
+    with pytest.raises(DslError, match="not in scope"):
+        rule.validate(unknown_argument, ScopeFrame(("p",), closed=True))
+    outer_and_yielded = ProcedureCallClause(
+        ("db", "labels"),
+        (),
+        optional=False,
+        yields=(name("label"),),
+        predicate=name("p") == name("label"),
+    )
+    rule.validate(outer_and_yielded, ScopeFrame(("p",), closed=True))
+    unknown_predicate = ProcedureCallClause(
+        ("db", "labels"),
+        (),
+        optional=False,
+        yields=(name("label"),),
+        predicate=name("ghost") == name("label"),
+    )
+    with pytest.raises(DslError, match="not in scope"):
+        rule.validate(unknown_predicate, ScopeFrame(("p",), closed=True))
+
+
+def test_procedure_call_records_the_optional_capability_only_when_optional() -> None:
+    from cypher_dsl.clauses.call import ProcedureCallClause
+    from cypher_dsl.features import Capability
+    from cypher_dsl.statements.frames import SyntaxRequirement
+    from cypher_dsl.statements.rules.base import AnalysisSink
+    from cypher_dsl.statements.rules.call import ProcedureCallRule
+
+    optional: list[SyntaxRequirement] = []
+    ProcedureCallRule().record(
+        ProcedureCallClause(("db", "labels"), (), optional=True), ScopeFrame(), AnalysisSink({}, optional, (1, 0))
+    )
+    assert [(item.capability, item.path) for item in optional] == [(Capability.OPTIONAL_CALL, (1, 0))]
+    plain: list[SyntaxRequirement] = []
+    ProcedureCallRule().record(
+        ProcedureCallClause(("db", "labels"), (), optional=False), ScopeFrame(), AnalysisSink({}, plain, (1, 0))
+    )
+    assert plain == []
 
 
 @pytest.mark.parametrize("reserved", [False, True])

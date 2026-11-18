@@ -101,8 +101,7 @@ The `pretty_print` option renders multi-line text for reading; the default rende
 ## What is not available
 
 - No OGM, driver connection, transaction or schema installation.
-- No `CALL` procedures (`CALL db.labels()`, `YIELD`), `SEARCH`, path selectors, quantified
-  path patterns or catalogue analysis.
+- No `SEARCH`, path selectors, quantified path patterns or catalogue analysis.
 - No Cypher parser. The input is Python construction, not query text.
 - No automatic parameter binding.
 - No inline bytes literal.

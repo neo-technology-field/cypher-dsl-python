@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "cypher-dsl"
 version = "0.1.0a2"
-description = "CPython DSl to constuct Cypher queries."
+description = "DSl to constuct Cypher queries."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

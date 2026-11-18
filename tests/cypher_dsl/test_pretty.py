@@ -7,8 +7,10 @@ from cypher_dsl import (
     Language,
     Renderer,
     assign,
+    call_procedure,
     desc,
     fn,
+    lit,
     match,
     merge,
     name,
@@ -244,6 +246,20 @@ def test_a_call_body_that_overflows_renders_clause_per_line() -> None:
         "  RETURN p.display_name AS actor, m.title, p.rating, m.released\n"
         "}\n"
         "RETURN actor"
+    )
+
+
+def test_a_broken_procedure_call_puts_its_filter_under_the_yield() -> None:
+    statement = (
+        call_procedure("dbms.checkConfigValue", param("setting"), param("expected"))
+        .yielding(name("valid"), name("actual").alias("observed"))
+        .where(name("valid") == lit(False))
+        .returning(name("valid"), name("observed"))
+    )
+    assert RENDERER.render(statement).cypher == (
+        "CALL dbms.checkConfigValue($setting, $expected) YIELD valid, actual AS observed\n"
+        "  WHERE valid = false\n"
+        "RETURN valid, observed"
     )
 
 

@@ -46,7 +46,7 @@ def require_appendable(clauses: tuple[Clause, ...], keyword: str) -> None:
 
 
 _READ_HINTS = {
-    "CALL": "Add with_() before calling a subquery.",
+    "CALL": "Add with_() before the CALL.",
     "MATCH": "Add with_() before reading again.",
     "UNWIND": "Add with_() before reading again.",
 }
@@ -90,7 +90,7 @@ def _subquery_returns(subquery: Statement | UnionStatement) -> bool:
 
 
 def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
-    from cypher_dsl.clauses.call import SubqueryCallClause
+    from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
     from cypher_dsl.clauses.match import MatchClause
     from cypher_dsl.clauses.unwind import UnwindClause
 
@@ -110,13 +110,19 @@ def _validate_statement_clauses(clauses: tuple[Clause, ...]) -> None:
             require_read_position(prefix, "MATCH")
         elif isinstance(clause, UnwindClause):
             require_read_position(prefix, "UNWIND")
-        elif isinstance(clause, SubqueryCallClause):
+        elif isinstance(clause, (SubqueryCallClause, ProcedureCallClause)):
             require_read_position(prefix, "CALL")
     final = clauses[-1]
     if isinstance(final, SubqueryCallClause):
         if _subquery_returns(final.subquery):
             raise DslError(
                 "A returning subquery cannot end a statement. Add a RETURN clause or another clause after the CALL."
+            )
+    elif isinstance(final, ProcedureCallClause):
+        if final.yields:
+            raise DslError(
+                "A CALL with YIELD items cannot end a statement. The yielded names must feed a following clause, "
+                "so add a RETURN or another clause."
             )
     elif not isinstance(final, (ReturnClause, *_UPDATE_CLAUSES)):
         raise DslError(

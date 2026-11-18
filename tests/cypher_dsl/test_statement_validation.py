@@ -22,6 +22,7 @@ from cypher_dsl import (
     Variable,
     WithClause,
     asterisk,
+    call_procedure,
     lit,
     match,
     name,
@@ -30,6 +31,7 @@ from cypher_dsl import (
     union,
     with_,
 )
+from cypher_dsl.clauses.call import ProcedureCallClause
 from cypher_dsl.errors import DslError, InvalidClauseOrderError
 
 
@@ -250,3 +252,24 @@ def test_a_statement_with_a_with_and_no_return_cannot_be_rendered():
 def test_an_empty_builder_has_no_projection_to_finalise():
     with pytest.raises(DslError):
         StatementBuilder().build()
+
+
+def test_a_standalone_procedure_call_is_finalisable() -> None:
+    statement = call_procedure("db.labels").build()
+    assert Renderer.get(Configuration(server_version="5.26")).render(statement).cypher == "CALL db.labels()"
+
+
+def test_a_directly_constructed_statement_accepts_a_procedure_call_terminus() -> None:
+    statement = Statement((ProcedureCallClause(("db", "labels"), (), optional=False),))
+    assert Renderer.get(Configuration(server_version="5.26")).render(statement).cypher == "CALL db.labels()"
+
+
+def test_a_directly_constructed_statement_rejects_a_yielded_procedure_call_terminus() -> None:
+    clause = ProcedureCallClause(("db", "labels"), (), optional=False, yields=(name("label"),))
+    with pytest.raises(DslError, match="cannot end a statement"):
+        Statement((clause,))
+
+
+def test_a_standalone_procedure_call_cannot_be_a_union_part() -> None:
+    with pytest.raises(DslError, match="end with a RETURN clause"):
+        union(call_procedure("db.labels"), returning(lit(1).alias("x")))

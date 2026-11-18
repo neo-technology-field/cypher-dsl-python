@@ -14,6 +14,7 @@ from cypher_dsl import (
     assign,
     asterisk,
     call,
+    call_procedure,
     condition,
     count,
     create,
@@ -319,6 +320,11 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         .build(),
         unwind(param("rows"), name("row")).returning(name("row")).build(),
         call(returning(lit(1).alias("x"))).returning(name("x")).build(),
+        call_procedure("db.labels", param("first"))
+        .yielding(name("label"))
+        .where(name("label") != lit("x"))
+        .returning(name("label"))
+        .build(),
         create(relationship).build(),
         merge(person).on_create(assign(person["created"], True)).on_match(assign(person["seen"], True)).build(),
         match(person)

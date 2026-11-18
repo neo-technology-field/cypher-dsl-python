@@ -207,6 +207,6 @@ body. Keep the import in the inner ``WITH`` projection when the body needs it la
 Calling procedures
 ------------------
 
-``CALL db.labels()``, ``YIELD`` and the filter after ``YIELD`` have no builder in this
-release. A procedure call is a whole clause, and ``raw()`` builds expressions only, so
-there is no supported way to build one. See :ref:`raw-expression` for what it covers.
+A procedure call is a whole clause built with ``call_procedure``, not a subquery: it
+invokes a stored procedure by name and binds the columns it yields. :doc:`procedures`
+documents the call, its :ref:`yield items <procedure-yield>` and the filter after them.

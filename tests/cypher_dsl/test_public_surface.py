@@ -29,6 +29,7 @@ from cypher_dsl import (
     assign,
     asterisk,
     boolean_operation,
+    call_procedure,
     condition,
     count,
     create,
@@ -43,6 +44,7 @@ from cypher_dsl import (
     merge,
     name,
     node,
+    optional_call_procedure,
     optional_match,
     param,
     raw,
@@ -83,6 +85,7 @@ RENDERS: dict[str, tuple[object, str]] = {
         "MATCH (p:Person) CALL (p) { MATCH (m:Movie) RETURN m.title AS title } IN TRANSACTIONS OF 5000 ROWS"
         " RETURN title",
     ),
+    "call_procedure": (call_procedure("db.labels"), "CALL db.labels()"),
     "condition": (
         match(PERSON).where(condition(PERSON["uid"] == "p1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p",
@@ -121,6 +124,10 @@ RENDERS: dict[str, tuple[object, str]] = {
         .returning(PERSON["uid"], name("title")),
         "MATCH (p:Person) OPTIONAL CALL (p) { MATCH (m:Movie) RETURN m.title AS title } IN TRANSACTIONS OF 5000"
         " ROWS RETURN p.uid, title",
+    ),
+    "optional_call_procedure": (
+        optional_call_procedure("apoc.neighbors.tohop", param("start"), "KNOWS>", 1),
+        "OPTIONAL CALL apoc.neighbors.tohop($start, 'KNOWS>', 1)",
     ),
     "optional_match": (optional_match(PERSON).returning(PERSON["uid"]), "OPTIONAL MATCH (p:Person) RETURN p.uid"),
     "param": (returning(param("uid", "p1")), "RETURN $uid"),

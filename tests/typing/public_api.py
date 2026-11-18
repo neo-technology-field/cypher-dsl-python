@@ -36,6 +36,7 @@ from cypher_dsl import (
     Variable,
     asc,
     assign,
+    call_procedure,
     count,
     create,
     desc,
@@ -50,6 +51,7 @@ from cypher_dsl import (
     merge,
     name,
     node,
+    optional_call_procedure,
     param,
     returning,
     same_binding,
@@ -93,6 +95,8 @@ assert_type(returning(movie["title"]), StatementBuilder)
 assert_type(with_(movie), StatementBuilder)
 assert_type(create(person), StatementBuilder)
 assert_type(merge(person), StatementBuilder)
+assert_type(call_procedure("db.labels"), StatementBuilder)
+assert_type(optional_call_procedure("apoc.neighbors.tohop", param("start"), "KNOWS>", 1), StatementBuilder)
 assert_type(unwind(param("rows"), name("row")), StatementBuilder)
 assert_type(match(movie).set_(assign(movie["rating"], param("rating", 4.5))), StatementBuilder)
 assert_type(match(movie).delete(movie), StatementBuilder)

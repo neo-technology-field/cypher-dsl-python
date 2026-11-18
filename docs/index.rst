@@ -41,6 +41,7 @@ string interpolation.
    writing
    composing
    subqueries
+   procedures
    parameters
    targets
    running

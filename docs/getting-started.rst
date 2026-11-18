@@ -326,8 +326,8 @@ What is not available
 
 - No OGM, driver connection, transaction or schema installation. Those belong to the
   caller's application or test harness.
-- No ``CALL`` procedures (``CALL db.labels()``, ``YIELD``), ``SEARCH``, path selectors,
-  quantified path patterns or catalogue analysis in this release.
+- No ``SEARCH``, path selectors, quantified path patterns or catalogue analysis in
+  this release.
 - No Cypher parser. The input is Python construction, not query text.
 - No automatic parameterization. A caller decides what becomes a parameter.
 - No inline bytes literal. Bind ``bytes`` with ``param()`` and pass it to the driver.

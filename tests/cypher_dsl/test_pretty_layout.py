@@ -74,3 +74,10 @@ def test_body_indents_the_body_statement_and_closes_at_the_call_level() -> None:
     assert occurrence.body("CALL (p)", "MATCH (p) RETURN p") == "CALL (p) {\n  MATCH (p) RETURN p\n}"
     nested = PrettyOccurrence(broken=True, level=1)
     assert nested.body("CALL (p)", "MATCH (p) RETURN p") == "CALL (p) {\n    MATCH (p) RETURN p\n  }"
+
+
+def test_listed_wraps_yield_items_under_a_composite_head() -> None:
+    occurrence = PrettyOccurrence(broken=True, level=0)
+    head = "CALL dbms.checkConfigValue($setting, $expected) YIELD"
+    item = "x" * 30
+    assert occurrence.listed(head, [item, item, item, item]) == f"{head} {item}, {item},\n  {item}, {item}"

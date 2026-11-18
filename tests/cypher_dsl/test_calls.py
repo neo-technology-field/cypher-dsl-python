@@ -1,8 +1,9 @@
-# One scenario is ported from the Java Cypher-DSL test suite (neo4j/cypher-dsl, Apache-2.0):
-# SubqueriesIT.java, nested class ResultReturningSubqueries, method importingVariablesShouldWork.
-# It is adapted for pytest and for this library's scope-clause rendering. All other tests in this
-# module are local contract tests.
-"""CALL subqueries: construction, rendering, scope and target contracts."""
+# Scenarios are ported from the Java Cypher-DSL test suite (neo4j/cypher-dsl, Apache-2.0):
+# SubqueriesIT.java, nested class ResultReturningSubqueries, method importingVariablesShouldWork,
+# and ProcedureCallsIT.java, methods yieldItemsRenamed, where and withThanReturningInQuery.
+# They are adapted for pytest and for this library's builder surface and rendered text. All other
+# tests in this module are local contract tests.
+"""CALL subqueries and procedure calls: construction, rendering, scope and target contracts."""
 
 from __future__ import annotations
 
@@ -11,14 +12,18 @@ from textwrap import dedent
 import pytest
 
 from cypher_dsl import (
+    AliasedExpression,
     Configuration,
     Language,
+    Literal,
     Renderer,
     Statement,
     SymbolicName,
+    Variable,
     assign,
     asterisk,
     call,
+    count,
     create,
     fn,
     lit,
@@ -34,13 +39,22 @@ from cypher_dsl import (
     unwind,
     with_,
 )
-from cypher_dsl.clauses.call import SubqueryCallClause, _coerce_import
-from cypher_dsl.errors import ConflictingParameterError, DslError, InvalidClauseOrderError
+from cypher_dsl.clauses.call import (
+    ProcedureCallClause,
+    SubqueryCallClause,
+    _coerce_import,
+    call_procedure,
+    optional_call_procedure,
+)
+from cypher_dsl.errors import ConflictingParameterError, DslError, InvalidClauseOrderError, InvalidIdentifierError
+from cypher_dsl.expressions.operators import BinaryOperation
 from cypher_dsl.features import Capability
 from cypher_dsl.statements.analysis import analyse
 
 PERSON = node("Person", name="p")
 MOVIE = node("Movie", name="m")
+
+LABELS = ("db", "labels")
 
 
 def _returning_title_body():
@@ -899,3 +913,416 @@ def test_nested_body_and_row_count_parameter_conflicts_are_query_global(
     )
     with pytest.raises(ConflictingParameterError):
         RENDERER.render(query)
+
+
+def test_procedure_call_holds_its_parts() -> None:
+    clause = ProcedureCallClause(LABELS, (), optional=False)
+    assert clause.name == LABELS
+    assert clause.arguments == ()
+    assert clause.optional is False
+    assert clause.yields == ()
+    assert clause.predicate is None
+    assert clause.children() == ()
+
+
+def test_procedure_call_accepts_arguments() -> None:
+    first_argument = lit("Person")
+    second_argument = param("limit", 10)
+    clause = ProcedureCallClause(LABELS, (first_argument, second_argument), optional=False)
+    assert clause.arguments == (first_argument, second_argument)
+    assert clause.children() == (first_argument, second_argument)
+
+
+def test_procedure_call_accepts_the_optional_flag() -> None:
+    assert ProcedureCallClause(LABELS, (), optional=True).optional is True
+
+
+def test_procedure_call_accepts_plain_and_aliased_yields() -> None:
+    label = name("label")
+    aliased = name("label").alias("name")
+    clause = ProcedureCallClause(LABELS, (), optional=False, yields=(label, aliased))
+    assert clause.yields == (label, aliased)
+
+
+def test_procedure_call_accepts_a_predicate_over_yields() -> None:
+    label = name("label")
+    predicate = label == lit("Person")
+    clause = ProcedureCallClause(LABELS, (), optional=False, yields=(label,), predicate=predicate)
+    assert clause.predicate is predicate
+    assert clause.children() == (label, predicate)
+
+
+@pytest.mark.parametrize(
+    ("invalid_name", "message"),
+    [
+        pytest.param(["db", "labels"], "tuple of string segments", id="list"),
+        pytest.param("db.labels", "tuple of string segments", id="string"),
+        pytest.param(("db", 7), "tuple of string segments", id="non-string-segment"),
+        pytest.param((), "at least one segment", id="empty"),
+    ],
+)
+def test_procedure_call_rejects_a_name_it_cannot_render(invalid_name: object, message: str) -> None:
+    with pytest.raises(DslError, match=message):
+        ProcedureCallClause(invalid_name, (), optional=False)
+
+
+def test_procedure_call_rejects_a_name_segment_that_is_not_an_identifier() -> None:
+    with pytest.raises(InvalidIdentifierError, match="cannot be empty"):
+        ProcedureCallClause(("db", ""), (), optional=False)
+
+
+@pytest.mark.parametrize("optional", ["yes", 1, None])
+def test_procedure_call_rejects_a_boolean_flag_of_the_wrong_type(optional: object) -> None:
+    with pytest.raises(DslError, match="boolean choice"):
+        ProcedureCallClause(LABELS, (), optional=optional)
+
+
+def test_procedure_call_requires_tuple_arguments() -> None:
+    with pytest.raises(DslError, match="must be a tuple"):
+        ProcedureCallClause(LABELS, [lit("Person")], optional=False)
+
+
+def test_procedure_call_requires_tuple_yields() -> None:
+    with pytest.raises(DslError, match="must be a tuple"):
+        ProcedureCallClause(LABELS, (), optional=False, yields=[name("label")])
+
+
+@pytest.mark.parametrize("argument", ["Person", 42])
+def test_procedure_call_rejects_arguments_that_are_not_expressions(argument: object) -> None:
+    with pytest.raises(DslError, match="arguments need expressions"):
+        ProcedureCallClause(LABELS, (argument,), optional=False)
+
+
+def test_procedure_call_rejects_an_aliased_argument() -> None:
+    with pytest.raises(DslError, match="alias is a projection"):
+        ProcedureCallClause(LABELS, (name("label").alias("name"),), optional=False)
+
+
+@pytest.mark.parametrize(
+    ("item", "message"),
+    [
+        pytest.param(lit("label"), "takes a variable or an aliased variable", id="literal"),
+        pytest.param(name("label")["name"].alias("name"), "aliases a variable", id="alias-over-property"),
+    ],
+)
+def test_procedure_call_rejects_yield_items_that_bind_no_variable(item: object, message: str) -> None:
+    with pytest.raises(DslError, match=message):
+        ProcedureCallClause(LABELS, (), optional=False, yields=(item,))
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        pytest.param((name("label"), name("label")), id="two-plain"),
+        pytest.param((name("label"), name("other").alias("label")), id="aliased-and-plain"),
+    ],
+)
+def test_procedure_call_rejects_duplicate_yield_bindings(items: object) -> None:
+    with pytest.raises(DslError, match="already binds 'label'"):
+        ProcedureCallClause(LABELS, (), optional=False, yields=items)
+
+
+def test_procedure_call_rejects_a_predicate_without_yields() -> None:
+    with pytest.raises(DslError, match="filters YIELD output"):
+        ProcedureCallClause(LABELS, (), optional=False, predicate=name("label") == lit("Person"))
+
+
+def test_procedure_call_rejects_a_predicate_that_is_not_an_expression() -> None:
+    with pytest.raises(DslError, match="predicate needs an expression"):
+        ProcedureCallClause(LABELS, (), optional=False, yields=(name("label"),), predicate="label = 'Person'")
+
+
+def test_procedure_call_rejects_an_aliased_predicate() -> None:
+    predicate = (name("label") == lit("Person")).alias("matches")
+    with pytest.raises(DslError, match="alias is a projection"):
+        ProcedureCallClause(LABELS, (), optional=False, yields=(name("label"),), predicate=predicate)
+
+
+def test_procedure_call_children_follow_rendered_order() -> None:
+    first_argument = lit("db")
+    second_argument = lit("labels")
+    first_yield = name("label")
+    second_yield = name("other").alias("name")
+    predicate = name("label") == lit("Person")
+    clause = ProcedureCallClause(
+        LABELS,
+        (first_argument, second_argument),
+        optional=False,
+        yields=(first_yield, second_yield),
+        predicate=predicate,
+    )
+    assert clause.children() == (first_argument, second_argument, first_yield, second_yield, predicate)
+
+
+# The builder surface: construction, coercion, clause order and finalisation.
+
+
+def test_call_procedure_starts_a_builder_with_the_call_clause() -> None:
+    builder = call_procedure("db.labels")
+    assert len(builder.clauses) == 1
+    clause = builder.clauses[0]
+    assert isinstance(clause, ProcedureCallClause)
+    assert clause.name == LABELS
+    assert clause.arguments == ()
+    assert clause.optional is False
+    assert clause.yields == ()
+    assert clause.predicate is None
+
+
+def test_optional_call_procedure_sets_the_optional_flag() -> None:
+    clause = optional_call_procedure("db.labels").clauses[0]
+    assert isinstance(clause, ProcedureCallClause)
+    assert clause.name == LABELS
+    assert clause.optional is True
+
+
+def test_call_procedure_coerces_argument_inputs() -> None:
+    passed = name("p")
+    clause = call_procedure("db.labels", "Person", 10, passed).clauses[0]
+    assert isinstance(clause, ProcedureCallClause)
+    first, second, third = clause.arguments
+    assert isinstance(first, Literal) and first.value == "Person"
+    assert isinstance(second, Literal) and second.value == 10
+    assert third is passed
+
+
+def test_call_procedure_rejects_an_aliased_argument() -> None:
+    with pytest.raises(DslError, match="alias is a projection"):
+        call_procedure("db.labels", name("label").alias("name"))
+
+
+def test_yielding_coerces_and_appends_items() -> None:
+    label = name("label")
+    clause = call_procedure("db.labels").yielding("propertyKey", label, name("other").alias("name")).clauses[0]
+    assert isinstance(clause, ProcedureCallClause)
+    plain, variable, aliased = clause.yields
+    assert isinstance(plain, Variable) and plain.symbol.value == "propertyKey"
+    assert variable is label
+    assert isinstance(aliased, AliasedExpression) and aliased.alias_name.value == "name"
+    builder = call_procedure("db.labels").yielding("label")
+    appended = builder.yielding(name("other").alias("name")).clauses[0].yields
+    assert len(appended) == 2
+    assert appended[0] is builder.clauses[0].yields[0]
+
+
+def test_yielding_requires_a_procedure_call_owner() -> None:
+    with pytest.raises(InvalidClauseOrderError, match="must immediately follow the procedure call"):
+        match(PERSON).yielding("label")
+    with pytest.raises(InvalidClauseOrderError, match="must immediately follow the procedure call"):
+        with_(PERSON).yielding("label")
+
+
+def test_yielding_requires_at_least_one_item() -> None:
+    with pytest.raises(DslError, match="at least one item"):
+        call_procedure("db.labels").yielding()
+
+
+def test_where_attaches_to_a_yielded_call_and_combines() -> None:
+    first = name("label") == lit("Person")
+    builder = call_procedure("db.labels").yielding("label").where(first)
+    clause = builder.clauses[0]
+    assert isinstance(clause, ProcedureCallClause)
+    assert clause.predicate is first
+    combined = builder.where(name("label") != lit("Movie")).clauses[0].predicate
+    assert isinstance(combined, BinaryOperation)
+
+
+def test_where_on_a_yield_less_call_is_rejected() -> None:
+    with pytest.raises(DslError, match="filters YIELD output"):
+        call_procedure("db.labels").where(name("label") == lit("Person"))
+
+
+@pytest.mark.parametrize("optional", [False, True])
+def test_procedure_call_after_an_update_needs_with(optional: bool) -> None:
+    prefix = match(PERSON).set_(assign(PERSON["uid"], "p1"))
+    append = prefix.optional_call_procedure if optional else prefix.call_procedure
+    with pytest.raises(InvalidClauseOrderError, match="needs a WITH boundary"):
+        append("db.labels")
+
+
+@pytest.mark.parametrize("optional", [False, True])
+def test_with_allows_a_procedure_call_after_an_update(optional: bool) -> None:
+    prefix = match(PERSON).set_(assign(PERSON["uid"], "p1")).with_(PERSON)
+    append = prefix.optional_call_procedure if optional else prefix.call_procedure
+    clause = append("db.labels").clauses[-1]
+    assert isinstance(clause, ProcedureCallClause)
+    assert clause.optional is optional
+
+
+def test_procedure_call_after_return_is_rejected() -> None:
+    with pytest.raises(InvalidClauseOrderError, match="must precede RETURN"):
+        match(PERSON).returning(PERSON).call_procedure("db.labels")
+
+
+def test_a_yield_less_procedure_call_can_end_a_statement() -> None:
+    assert isinstance(call_procedure("db.labels").build(), Statement)
+
+
+def test_a_yield_less_procedure_call_can_end_a_larger_query() -> None:
+    assert isinstance(match(PERSON).with_(name("p")).call_procedure("db.labels").build(), Statement)
+
+
+def test_a_yielded_procedure_call_cannot_end_a_statement() -> None:
+    with pytest.raises(DslError, match="cannot end a statement"):
+        call_procedure("db.labels").yielding("label").build()
+
+
+# The scope rules: yielded bindings, reference checks and capability recording.
+
+
+def test_yielded_names_reach_a_following_return() -> None:
+    builder = with_(lit(1).alias("one")).call_procedure("db.labels").yielding("label")
+    assert isinstance(builder.returning(name("label")).build(), Statement)
+    with pytest.raises(DslError, match="not in scope"):
+        builder.returning(name("ghost"))
+
+
+def test_aliased_yields_bind_the_alias_not_the_column() -> None:
+    builder = with_(lit(1).alias("one")).call_procedure("db.propertyKeys").yielding(name("propertyKey").alias("prop"))
+    assert isinstance(builder.returning(name("prop")).build(), Statement)
+    with pytest.raises(DslError, match="not in scope"):
+        builder.returning(name("propertyKey"))
+
+
+def test_a_yielded_name_the_outer_query_holds_is_rejected() -> None:
+    with pytest.raises(DslError, match="which the outer query already holds"):
+        with_(lit(1).alias("label")).call_procedure("db.labels").yielding("label")
+
+
+def test_a_yielded_name_an_import_holds_is_rejected() -> None:
+    leaf = returning(lit(1).alias("one")).build()
+    body = call(leaf, imports=("p",)).call_procedure("db.labels").yielding("p").returning(name("one")).build()
+    with pytest.raises(DslError, match="redeclares imported name 'p'"):
+        match(PERSON).call(body, imports=("p",))
+
+
+def test_procedure_arguments_are_checked_against_the_incoming_scope() -> None:
+    with pytest.raises(DslError, match="not in scope"):
+        with_(lit(1).alias("one")).call_procedure("db.labels", name("missing"))
+
+
+def test_the_call_predicate_sees_outer_and_yielded_names() -> None:
+    builder = with_(lit(1).alias("one")).call_procedure("db.labels").yielding("label")
+    query = builder.where(name("one") == name("label")).returning(name("label")).build()
+    assert isinstance(query, Statement)
+    with pytest.raises(DslError, match="not in scope"):
+        builder.where(name("ghost") == lit(1))
+
+
+def test_a_yield_less_call_leaves_the_scope_untouched() -> None:
+    builder = with_(lit(1).alias("one")).call_procedure("db.labels")
+    assert isinstance(builder.returning(name("one")).build(), Statement)
+    with pytest.raises(DslError, match="not in scope"):
+        builder.returning(name("label"))
+
+
+def test_optional_procedure_call_records_its_capability() -> None:
+    statement = optional_call_procedure("db.labels").build()
+    assert [(requirement.capability, requirement.path) for requirement in analyse(statement).requirements] == [
+        (Capability.OPTIONAL_CALL, (0,))
+    ]
+
+
+def test_a_plain_procedure_call_records_no_capability() -> None:
+    assert analyse(call_procedure("db.labels").build()).requirements == ()
+
+
+# Rendering the procedure call.
+
+
+def test_procedure_call_without_arguments_renders_the_empty_parentheses() -> None:
+    assert RENDERER.render(call_procedure("db.labels")).cypher == "CALL db.labels()"
+
+
+def test_procedure_call_renders_its_arguments_in_order() -> None:
+    statement = optional_call_procedure("apoc.neighbors.tohop", param("p"), "KNOWS>", 1)
+    assert RENDERER.render(statement).cypher == "OPTIONAL CALL apoc.neighbors.tohop($p, 'KNOWS>', 1)"
+
+
+def test_procedure_call_keeps_unbound_arguments_unbound() -> None:
+    rendered = RENDERER.render(optional_call_procedure("apoc.neighbors.tohop", param("p"), "KNOWS>", 1))
+    assert rendered.parameters == {}
+    assert rendered.unbound_parameters == frozenset({"p"})
+
+
+def test_procedure_call_renders_a_yield_item_under_an_alias() -> None:
+    statement = call_procedure("db.propertyKeys").yielding(name("propertyKey").alias("prop")).returning(name("prop"))
+    assert RENDERER.render(statement).cypher == "CALL db.propertyKeys() YIELD propertyKey AS prop RETURN prop"
+
+
+def test_procedure_call_renders_plain_and_aliased_yields_in_one_list() -> None:
+    statement = (
+        call_procedure("db.propertyKeys")
+        .yielding("propertyKey", name("prop").alias("other"))
+        .returning(name("propertyKey"), name("other"))
+    )
+    assert RENDERER.render(statement).cypher == (
+        "CALL db.propertyKeys() YIELD propertyKey, prop AS other RETURN propertyKey, other"
+    )
+
+
+def test_procedure_call_renders_its_filter_after_the_yields() -> None:
+    statement = (
+        call_procedure("dbms.checkConfigValue", param("setting"), "true")
+        .yielding(name("valid").alias("ok"))
+        .where(name("ok") == lit(True))
+        .returning(name("ok"))
+    )
+    assert RENDERER.render(statement).cypher == (
+        "CALL dbms.checkConfigValue($setting, 'true') YIELD valid AS ok WHERE ok = true RETURN ok"
+    )
+
+
+def test_procedure_name_segments_and_yields_are_quoted_structurally() -> None:
+    statement = call_procedure("db.my-labels").yielding(name("row")).returning(name("row"))
+    assert RENDERER.render(statement).cypher == "CALL db.`my-labels`() YIELD `row` RETURN `row`"
+
+
+def test_procedure_names_follow_the_function_name_rule_under_forced_escaping() -> None:
+    escaping = Renderer.get(Configuration(server_version="5.26", always_escape_names=True))
+    statement = call_procedure("db.labels").yielding(name("label")).returning(name("label"))
+    assert escaping.render(statement).cypher == "CALL db.labels() YIELD `label` RETURN `label`"
+
+
+def test_ported_procedure_calls_it_yield_items_renamed() -> None:
+    """Port of ProcedureCallsIT.yieldItemsRenamed at d3b17e42."""
+    statement = call_procedure("db.propertyKeys").yielding(name("propertyKey").alias("prop")).returning(name("prop"))
+    # Upstream renders "CALL db.propertyKeys() YIELD propertyKey AS prop" and lets the yielded
+    # call end the statement. This library requires the yielded names to feed a following
+    # clause, so the scenario returns the aliased item.
+    assert RENDERER.render(statement).cypher == "CALL db.propertyKeys() YIELD propertyKey AS prop RETURN prop"
+
+
+def test_ported_procedure_calls_it_where() -> None:
+    """Port of ProcedureCallsIT.where at d3b17e42."""
+    statement = (
+        call_procedure("dbms.listConfig", "browser")
+        .yielding("name")
+        .where(name("name") == lit("browser.allowlist"))
+        .returning(asterisk())
+    )
+    # Upstream filters with the regex operator "=~", which this library does not model. The
+    # scenario keeps the argument, the yield, the filter position and the asterisk return.
+    # "name" is a reserved word here, so the renderer quotes it; upstream does not.
+    assert RENDERER.render(statement).cypher == (
+        "CALL dbms.listConfig('browser') YIELD `name` WHERE `name` = 'browser.allowlist' RETURN *"
+    )
+
+
+def test_ported_procedure_calls_it_with_then_returning_in_query() -> None:
+    """Port of ProcedureCallsIT.withThanReturningInQuery at d3b17e42."""
+    label = name("label")
+    statement = (
+        match(node("Person", name="n"))
+        .with_(name("n"))
+        .call_procedure("db.labels")
+        .yielding(label)
+        .with_(label)
+        .returning(count(label).alias("numLabels"))
+    )
+    # Upstream matches an unlabelled node, which this library's node grammar does not express,
+    # so the scenario matches a labelled one. "label" is a reserved word here, so the renderer
+    # quotes it; upstream does not.
+    assert RENDERER.render(statement).cypher == (
+        "MATCH (n:Person) WITH n CALL db.labels() YIELD `label` WITH `label` RETURN count(`label`) AS numLabels"
+    )

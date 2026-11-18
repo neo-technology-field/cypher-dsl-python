@@ -13,7 +13,7 @@ from typing import cast
 
 from cypher_dsl.ast import _require_tuple
 from cypher_dsl.clauses.base import Clause
-from cypher_dsl.clauses.call import SubqueryCallClause, _coerce_import, _finalise_subquery
+from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause, _coerce_import, _finalise_subquery
 from cypher_dsl.clauses.match import MatchClause
 from cypher_dsl.clauses.projection import ProjectionOwner, ReturnClause, WithClause
 from cypher_dsl.clauses.unwind import UnwindClause
@@ -36,7 +36,7 @@ from cypher_dsl.expressions.base import (
     coerce_expression,
 )
 from cypher_dsl.expressions.operators import Condition
-from cypher_dsl.expressions.values import SortItem, SymbolicName, Variable, lit
+from cypher_dsl.expressions.values import AliasedExpression, SortItem, SymbolicName, Variable, lit, validate_name
 from cypher_dsl.patterns.nodes import PatternElement
 from cypher_dsl.statements.composition import Statement, UnionStatement
 from cypher_dsl.statements.frames import ScopeFrame
@@ -310,6 +310,97 @@ class StatementBuilder:
         validate_clause(frame_after(self.clauses), clause)
         return StatementBuilder((*self.clauses, clause))
 
+    def call_procedure(self, procedure_name: str, *arguments: ExpressionInput) -> StatementBuilder:
+        """
+        Append a ``CALL`` procedure clause and return a new builder.
+
+        The call without ``YIELD`` items binds nothing, and a statement may end with it
+        the way it ends with a write clause. A call with ``YIELD`` items needs a
+        following clause; ``yielding()`` attaches the items.
+
+        Args:
+            procedure_name: Dot-qualified procedure name, such as ``db.labels``.
+            arguments: Argument expressions or literal values. A bare string is a
+                literal, not a name.
+
+        Returns:
+            A new builder ending in the ``CALL`` clause.
+
+        Raises:
+            DslError: If an argument cannot be an expression, or a name segment cannot
+                be an identifier.
+            InvalidClauseOrderError: If the statement already ends in ``RETURN``, or an
+                updating clause in the current query part has no ``WITH`` boundary in
+                front of the call.
+        """
+        return self._with_procedure_call(procedure_name, arguments, optional=False)
+
+    def optional_call_procedure(self, procedure_name: str, *arguments: ExpressionInput) -> StatementBuilder:
+        """
+        Append an ``OPTIONAL CALL`` procedure clause and return a new builder.
+
+        Rows the procedure produces no output for survive with ``null`` bindings, the
+        same way ``OPTIONAL MATCH`` keeps rows without a match.
+
+        Args:
+            procedure_name: Dot-qualified procedure name, such as ``db.labels``.
+            arguments: Argument expressions or literal values. A bare string is a
+                literal, not a name.
+
+        Returns:
+            A new builder ending in the ``OPTIONAL CALL`` clause.
+
+        Raises:
+            DslError: If an argument cannot be an expression, or a name segment cannot
+                be an identifier.
+            InvalidClauseOrderError: If the statement already ends in ``RETURN``, or an
+                updating clause in the current query part has no ``WITH`` boundary in
+                front of the call.
+        """
+        return self._with_procedure_call(procedure_name, arguments, optional=True)
+
+    def yielding(self, *items: str | Variable | AliasedExpression) -> StatementBuilder:
+        """
+        Attach ``YIELD`` items to the procedure call that immediately precedes them.
+
+        Repeated calls append, so a second call adds items rather than replacing the
+        first. A bare string is a plain yielded name.
+
+        Args:
+            items: Yielded columns, each a bare name, a variable, or a variable under
+                one alias. At least one is required.
+
+        Returns:
+            A new builder whose call carries the combined yield items.
+
+        Raises:
+            DslError: If no item is supplied, an item binds no variable, or two items
+                bind the same name.
+            InvalidClauseOrderError: If the final clause is not a procedure call.
+        """
+        if not items:
+            raise DslError("YIELD requires at least one item.")
+        owner = self.clauses[-1] if self.clauses else None
+        if not isinstance(owner, ProcedureCallClause):
+            raise InvalidClauseOrderError("YIELD must immediately follow the procedure call it belongs to.")
+        coerced = tuple(_coerce_yield(item) for item in items)
+        updated = replace(owner, yields=(*owner.yields, *coerced))
+        validate_clause(frame_after(self.clauses[:-1]), updated)
+        return StatementBuilder((*self.clauses[:-1], updated))
+
+    def _with_procedure_call(
+        self,
+        procedure_name: str,
+        arguments: tuple[ExpressionInput, ...],
+        optional: bool,
+    ) -> StatementBuilder:
+        require_read_position(self.clauses, "CALL")
+        segments = tuple(procedure_name.split("."))
+        coerced = tuple(coerce_expression(argument) for argument in arguments)
+        clause = ProcedureCallClause(segments, coerced, optional)
+        validate_clause(frame_after(self.clauses), clause)
+        return StatementBuilder((*self.clauses, clause))
+
     def create(self, *patterns: PatternElement) -> StatementBuilder:
         """
         Append a ``CREATE`` clause and return a new builder.
@@ -489,9 +580,10 @@ class StatementBuilder:
 
         The filter belongs to that clause, so a filter after ``OPTIONAL MATCH`` stays on
         the optional match. An ordinary ``WITH`` filter sees incoming and projected
-        names, but ``DISTINCT`` and aggregation restrict it to projected names.
-        Subsequent clauses always see only the output. Repeated filters combine with
-        ``AND``.
+        names, but ``DISTINCT`` and aggregation restrict it to projected names. A
+        procedure call's filter sees the outer names and the names its ``YIELD`` items
+        bind, so it needs those items first. Subsequent clauses always see only the
+        output. Repeated filters combine with ``AND``.
 
         Args:
             condition: Predicate the owning clause must satisfy.
@@ -500,20 +592,24 @@ class StatementBuilder:
             A new builder whose owning clause carries the combined filter.
 
         Raises:
-            DslError: If no clause can own a filter yet, or the predicate refers to a
-                name a preceding ``WITH`` discarded.
+            DslError: If no clause can own a filter yet, the final clause is a procedure
+                call without yield items, or the predicate refers to a name a preceding
+                ``WITH`` discarded.
             InvalidClauseOrderError: If the statement already ends in ``RETURN``, or the
-                final clause is not a ``MATCH`` or ``WITH``. After ``UNWIND``, add
-                ``with_()`` before filtering.
+                final clause is not a ``MATCH``, ``WITH`` or procedure call. After
+                ``UNWIND``, add ``with_()`` before filtering.
         """
         if not self.clauses:
-            raise DslError("WHERE needs a MATCH or WITH clause to filter. Start the statement with match().")
+            raise DslError(
+                "WHERE needs a MATCH, WITH or procedure call to filter. "
+                "Start the statement with match() or call_procedure()."
+            )
         owner = self.clauses[-1]
         if isinstance(owner, ReturnClause):
             raise InvalidClauseOrderError("WHERE must precede RETURN in a statement.")
-        if not isinstance(owner, (MatchClause, WithClause)):
+        if not isinstance(owner, (MatchClause, WithClause, ProcedureCallClause)):
             raise InvalidClauseOrderError(
-                f"WHERE must follow a MATCH or WITH clause, not {type(owner).__name__}. "
+                f"WHERE must follow a MATCH, WITH or procedure call, not {type(owner).__name__}. "
                 "After UNWIND, add with_() before filtering."
             )
         updated = owner.with_where(condition)
@@ -681,6 +777,25 @@ def _coerce_projection(value: ProjectionInput) -> Expression:
     if isinstance(value, NamedExpression):
         return value.as_expression()
     return lit(value)
+
+
+def _coerce_yield(item: str | Variable | AliasedExpression) -> Variable | AliasedExpression:
+    """
+    Turn one yield input into the item the clause can hold.
+
+    Args:
+        item: A bare yielded name, a variable, or a variable under one alias.
+
+    Returns:
+        The bare name as a variable, or the item unchanged.
+
+    Raises:
+        InvalidIdentifierError: If a bare name cannot be an identifier.
+    """
+    if isinstance(item, str):
+        validate_name(item)
+        return Variable(SymbolicName(item))
+    return item
 
 
 def _scope_before_owner(clauses: tuple[Clause, ...]) -> ScopeFrame:

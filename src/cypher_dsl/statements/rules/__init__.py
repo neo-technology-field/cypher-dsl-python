@@ -12,7 +12,7 @@ from cypher_dsl.statements.rules.base import (
     validate_clause,
     walk_clauses,
 )
-from cypher_dsl.statements.rules.call import CallRule
+from cypher_dsl.statements.rules.call import CallRule, ProcedureCallRule
 from cypher_dsl.statements.rules.flow import UnionRule, UnwindRule
 from cypher_dsl.statements.rules.match import MatchRule
 from cypher_dsl.statements.rules.projection import ProjectionRule
@@ -25,6 +25,7 @@ __all__ = [
     "MatchRule",
     "MergeRule",
     "PatternState",
+    "ProcedureCallRule",
     "ProjectionRule",
     "RemoveRule",
     "SemanticRule",
@@ -45,7 +46,7 @@ __all__ = [
 
 def shared_rules() -> dict[type, SemanticRule]:
     """Assemble the registry. One rule instance per family, projections shared."""
-    from cypher_dsl.clauses.call import SubqueryCallClause
+    from cypher_dsl.clauses.call import ProcedureCallClause, SubqueryCallClause
     from cypher_dsl.clauses.match import MatchClause
     from cypher_dsl.clauses.projection import ReturnClause, WithClause
     from cypher_dsl.clauses.unwind import UnwindClause
@@ -58,6 +59,7 @@ def shared_rules() -> dict[type, SemanticRule]:
         DeleteClause: DeleteRule(),
         MatchClause: MatchRule(),
         MergeClause: MergeRule(),
+        ProcedureCallClause: ProcedureCallRule(),
         RemoveClause: RemoveRule(),
         ReturnClause: projection,
         SetClause: SetRule(),
