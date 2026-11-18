@@ -36,6 +36,7 @@ from cypher_dsl.api import (
     update_properties,
     with_,
 )
+from cypher_dsl.ast import AstNode, structurally_equal
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.clauses.call import SubqueryCallClause
 from cypher_dsl.clauses.match import MatchClause, Where
@@ -84,7 +85,6 @@ from cypher_dsl.render.configuration import Configuration
 from cypher_dsl.render.renderer import Rendered, Renderer, RenderInput
 from cypher_dsl.statements.builder import StatementBuilder
 from cypher_dsl.statements.composition import Statement, UnionStatement
-from cypher_dsl.ast import AstNode, structurally_equal
 
 __all__ = [
     "UNBOUND",

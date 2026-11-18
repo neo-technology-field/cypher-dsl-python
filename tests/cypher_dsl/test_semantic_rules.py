@@ -48,9 +48,9 @@ def test_registry_resolves_registered_and_unregistered_nodes() -> None:
 
 
 def test_registry_find_uses_the_nearest_registered_class_or_returns_none() -> None:
+    from cypher_dsl.ast import AstNode
     from cypher_dsl.expressions.base import Expression
     from cypher_dsl.statements.rules import SemanticRule, SemanticRules
-    from cypher_dsl.ast import AstNode
 
     class MarkerExpression(Expression):
         __slots__ = ()
@@ -325,13 +325,13 @@ def test_every_clause_class_has_a_semantic_rule() -> None:
 @pytest.mark.parametrize("nested", [False, True])
 def test_analysis_dispatches_expression_validation_and_recording(monkeypatch: pytest.MonkeyPatch, nested: bool) -> None:
     from cypher_dsl import call, lit, with_
+    from cypher_dsl.ast import AstNode
     from cypher_dsl.expressions.base import Expression
     from cypher_dsl.features import Capability
     from cypher_dsl.statements.analysis import analyse
     from cypher_dsl.statements.rules import SemanticRule, SemanticRules, shared_rules
     from cypher_dsl.statements.rules import base as rule_base
     from cypher_dsl.statements.rules.base import AnalysisSink
-    from cypher_dsl.ast import AstNode
 
     class MarkerExpression(Expression):
         __slots__ = ()

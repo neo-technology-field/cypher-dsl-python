@@ -131,10 +131,7 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
           UV_PUBLISH_USERNAME: __token__
-        # Trusted publishing defaults to automatic, which tries the OIDC route first on
-        # GitHub Actions. This workflow authenticates with a token instead, so the
-        # attempt is disabled rather than left to fail.
-        run: uv publish --trusted-publishing never
+        run: uv publish
 
       - name: Create the GitHub release
         env:

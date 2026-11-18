@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import cast
 
+from cypher_dsl.ast import _require_tuple
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.clauses.call import SubqueryCallClause, _coerce_import, _finalise_subquery
 from cypher_dsl.clauses.match import MatchClause
@@ -46,7 +47,6 @@ from cypher_dsl.statements.validation import (
     require_read_position,
     require_update_position,
 )
-from cypher_dsl.ast import _require_tuple
 
 
 def returning(*expressions: ProjectionInput) -> StatementBuilder:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from cypher_dsl.registry import TypeRegistry
 from cypher_dsl.ast import AstNode
+from cypher_dsl.registry import TypeRegistry
 
 
 class _Base(AstNode):

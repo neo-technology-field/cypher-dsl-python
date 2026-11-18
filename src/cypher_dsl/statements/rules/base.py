@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.errors import DslError, UnsupportedFeatureError
 from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import NodePattern
@@ -16,7 +17,6 @@ from cypher_dsl.statements.frames import (
     WriteDeclaration,
     free_variables_in,
 )
-from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 
 if TYPE_CHECKING:
     from cypher_dsl.clauses.base import Clause

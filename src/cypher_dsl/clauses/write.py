@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, TypeAlias
 
+from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError, EmptyPatternError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpression, coerce_expression, require_operand
@@ -27,7 +28,6 @@ from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.values import Literal, Parameter, SymbolicName, Variable, _FrozenMap, validate_name
 from cypher_dsl.patterns.nodes import PatternElement, PatternProperties, require_explicit_properties
 from cypher_dsl.patterns.relationships import RelationshipDirection, RelationshipPattern
-from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.statements.builder import StatementBuilder

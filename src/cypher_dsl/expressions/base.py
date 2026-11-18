@@ -14,8 +14,8 @@ from datetime import date, datetime, time, timedelta
 from enum import IntEnum
 from typing import TYPE_CHECKING, ClassVar, TypeAlias, Union, cast
 
-from cypher_dsl.errors import DslError
 from cypher_dsl.ast import AstNode
+from cypher_dsl.errors import DslError
 
 if TYPE_CHECKING:
     from cypher_dsl.expressions.operators import BinaryOperation, Comparison, Condition, UnaryOperation

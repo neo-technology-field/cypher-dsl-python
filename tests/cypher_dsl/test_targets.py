@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 import pytest
 
 from cypher_dsl import Configuration, Language
+from cypher_dsl.ast import AstNode
 from cypher_dsl.errors import UnsupportedFeatureError
 from cypher_dsl.features import Capability
 from cypher_dsl.render.context import RenderContext
@@ -14,7 +15,6 @@ from cypher_dsl.render.targets import ResolvedTarget, resolve_target
 from cypher_dsl.render.traversal import RenderingTraversal
 from cypher_dsl.statements.analysis import Analysis
 from cypher_dsl.statements.frames import SyntaxRequirement
-from cypher_dsl.ast import AstNode
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

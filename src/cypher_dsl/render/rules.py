@@ -6,11 +6,11 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import TypeVar, cast
 
+from cypher_dsl.ast import AstNode
 from cypher_dsl.errors import UnsupportedFeatureError
 from cypher_dsl.registry import TypeRegistry
 from cypher_dsl.render.context import RenderContext
 from cypher_dsl.render.fragments import Fragment
-from cypher_dsl.ast import AstNode
 
 TNode = TypeVar("TNode", bound=AstNode)
 Compose = Callable[[TNode, tuple[Fragment, ...], RenderContext], str]

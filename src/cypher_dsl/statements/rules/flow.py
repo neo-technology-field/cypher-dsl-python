@@ -13,8 +13,8 @@ from cypher_dsl.statements.frames import ScopeFrame, merge_names, reference_name
 from cypher_dsl.statements.rules.base import SemanticRule, check_references, frame_after, reject_reserved_redeclaration
 
 if TYPE_CHECKING:
-    from cypher_dsl.statements.composition import Statement
     from cypher_dsl.ast import AstNode
+    from cypher_dsl.statements.composition import Statement
 
 
 class UnwindRule(SemanticRule):

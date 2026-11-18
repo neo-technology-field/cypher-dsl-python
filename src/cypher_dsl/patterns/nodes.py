@@ -13,11 +13,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from cypher_dsl.ast import AstNode, _require_tuple, structurally_equal
 from cypher_dsl.errors import DslError, EmptyPatternError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, NamedExpression, coerce_expression, require_operand
 from cypher_dsl.expressions.collections import MapExpression
 from cypher_dsl.expressions.values import SymbolicName, Variable, validate_name
-from cypher_dsl.ast import AstNode, _require_tuple, structurally_equal
 
 if TYPE_CHECKING:
     from cypher_dsl.patterns.relationships import RelationshipPattern

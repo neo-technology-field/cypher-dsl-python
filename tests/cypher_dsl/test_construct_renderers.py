@@ -35,6 +35,7 @@ from cypher_dsl import (
     unwind,
     update_properties,
 )
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.clauses.projection import ProjectionClause
 from cypher_dsl.errors import DslError
 from cypher_dsl.render.expressions import expression_bindings
@@ -47,7 +48,6 @@ from cypher_dsl.render.unwind import unwind_bindings
 from cypher_dsl.render.updates import update_bindings
 from cypher_dsl.statements.analysis import Analysis, NodePatternFacts, NoFacts
 from cypher_dsl.statements.frames import DeclarationRole
-from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 
 
 def render(root: AstNode, rules: RenderingRules, facts: dict[OccurrencePath, OccurrenceFacts] | None = None) -> str:

@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 from cypher_dsl.features import Capability
 from cypher_dsl.patterns.nodes import NodePattern
-from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath
 
 if TYPE_CHECKING:
     from cypher_dsl.expressions.values import Variable

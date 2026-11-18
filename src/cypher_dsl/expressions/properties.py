@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cypher_dsl.ast import AstNode
 from cypher_dsl.expressions.base import Expression, require_operand
 from cypher_dsl.expressions.values import SymbolicName
-from cypher_dsl.ast import AstNode
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

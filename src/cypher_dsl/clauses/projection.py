@@ -15,13 +15,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, TypeAlias
 
+from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression, require_operand
 from cypher_dsl.expressions.functions import Asterisk, RawExpression
 from cypher_dsl.expressions.operators import Condition
 from cypher_dsl.expressions.values import AliasedExpression, Literal, SortItem, Variable
-from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.clauses.match import Where

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from cypher_dsl.render.layout import COMPACT, Layout
 from cypher_dsl.ast import OccurrenceFacts
+from cypher_dsl.render.layout import COMPACT, Layout
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)

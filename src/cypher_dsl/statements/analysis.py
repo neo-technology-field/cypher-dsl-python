@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath, _Visitor
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.values import Parameter
@@ -22,7 +23,6 @@ from cypher_dsl.statements.frames import (
 from cypher_dsl.statements.rules import PatternState, SemanticRules, semantic_rules
 from cypher_dsl.statements.rules.base import AnalysisSink
 from cypher_dsl.statements.rules.flow import union_columns_check
-from cypher_dsl.ast import AstNode, OccurrenceFacts, OccurrencePath, _Visitor
 
 
 @dataclass(frozen=True, weakref_slot=True, slots=True)

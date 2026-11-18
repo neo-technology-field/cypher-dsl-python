@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
+from cypher_dsl.ast import AstNode
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import (
     Expression,
@@ -20,7 +21,6 @@ from cypher_dsl.expressions.base import (
     coerce_expression,
     require_operand,
 )
-from cypher_dsl.ast import AstNode
 
 _ARITHMETIC_OPERATORS: Final = frozenset({"+", "-", "*", "/", "%"})
 _BOOLEAN_OPERATORS: Final = frozenset({"AND", "OR"})

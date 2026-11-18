@@ -17,9 +17,9 @@ from enum import Enum
 from math import isfinite
 from typing import ClassVar, Final, TypeAlias, cast
 
+from cypher_dsl.ast import AstNode
 from cypher_dsl.errors import DslError, InvalidIdentifierError, InvalidLiteralError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, LiteralInput, coerce_expression, require_operand
-from cypher_dsl.ast import AstNode
 
 FrozenScalar: TypeAlias = bool | int | float | str | bytes | date | datetime | time | timedelta | None
 

@@ -35,8 +35,8 @@ from cypher_dsl import (
     returning,
     union,
 )
-from cypher_dsl.errors import ConflictingParameterError, DslError, InvalidIdentifierError
 from cypher_dsl.ast import _Visitor
+from cypher_dsl.errors import ConflictingParameterError, DslError, InvalidIdentifierError
 
 
 def _render(value):

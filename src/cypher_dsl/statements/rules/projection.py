@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from cypher_dsl.ast import AstNode, structurally_equal
 from cypher_dsl.clauses.projection import ProjectionClause, WithClause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression
@@ -12,7 +13,6 @@ from cypher_dsl.expressions.values import AliasedExpression, SortItem, Variable
 from cypher_dsl.patterns.nodes import NodePattern
 from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names, reference_names
 from cypher_dsl.statements.rules.base import SemanticRule, check_references
-from cypher_dsl.ast import AstNode, structurally_equal
 
 # Aggregates that collapse the incoming row before ORDER BY or pagination applies.
 # The set is used only to decide whether a projection keeps the incoming names. It is

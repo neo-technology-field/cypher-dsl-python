@@ -12,11 +12,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError, EmptyPatternError
 from cypher_dsl.expressions.operators import Condition
 from cypher_dsl.patterns.nodes import PatternElement, require_explicit_properties
-from cypher_dsl.ast import AstNode, _require_tuple
 
 if TYPE_CHECKING:
     from cypher_dsl.statements.builder import StatementBuilder

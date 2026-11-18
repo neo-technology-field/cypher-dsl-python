@@ -14,11 +14,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from cypher_dsl.ast import AstNode
 from cypher_dsl.clauses.base import Clause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, require_operand
 from cypher_dsl.expressions.values import Variable, validate_name
-from cypher_dsl.ast import AstNode
 
 if TYPE_CHECKING:
     from cypher_dsl.statements.builder import StatementBuilder

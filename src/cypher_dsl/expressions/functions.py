@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.errors import DslError, InvalidIdentifierError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, Precedence, coerce_expression, require_operand
-from cypher_dsl.ast import AstNode, _require_tuple
 
 
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)

@@ -16,10 +16,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from cypher_dsl.ast import AstNode, _require_tuple
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression, ExpressionInput, coerce_expression, require_operand
 from cypher_dsl.expressions.values import SymbolicName, validate_name
-from cypher_dsl.ast import AstNode, _require_tuple
 
 MapEntry = tuple[SymbolicName, Expression]
 
