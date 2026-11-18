@@ -164,6 +164,47 @@ selects the ``CYPHER 25`` prefix:
 
     CYPHER 25 MATCH (p:Person) WHERE p IS NOT LABELED CEO RETURN p.uid
 
+Path pattern expressions
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``path_pattern`` turns a relationship chain into a boolean: it is true when the chain
+matches at least once. It is a predicate, so ``&``, ``|`` and ``~`` combine it with
+other conditions. Every named node and relationship in the chain must reference a name
+an earlier clause binds; the expression declares none of its own:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        lit,
+        match,
+        node,
+        path_pattern,
+    )
+
+    person = node("Person", name="p")
+    works_for = person.relationship_to(
+        node("Person", properties={"uid": lit("p1")}), "WORKS_FOR"
+    )
+    statement = (
+        match(person)
+        .where(path_pattern(works_for))
+        .returning(person["uid"])
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: text
+
+    MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'})
+    RETURN p.uid
+
+A projection item is not a boolean position: project ``~path_pattern(...)`` instead. A
+pattern that binds its own names or needs clauses of its own needs the ``exists``
+subquery form. The scope rules are documented with the read clauses: see
+:ref:`path pattern expressions <path-pattern-expression>`.
+
 ``RETURN``
 ~~~~~~~~~~
 
@@ -629,7 +670,6 @@ declaration is too old.
 Not yet
 -------
 
-- ``(a)-[:R]->(b)`` as a boolean — a path pattern expression.
 - ``COUNT { ... }`` and ``COLLECT { ... }`` — subquery expressions.
 - ``SEARCH n IN (VECTOR INDEX idx FOR $v) SCORE AS s``, and the ``FULLTEXT`` variation —
   vector and full-text search.
@@ -668,7 +708,7 @@ Not planned
 
 - ``MATCH (n)`` — an unlabelled node pattern. Every node pattern states what it
   matches, and that is deliberate: the builders never produce a label-free match.
-- ``LOAD CSV`` — import belongs to the application's data pipeline, not the query
+- ``LOAD CSV`` — it's a PoC tool at best. Good for demos. Has no place in a DSL.
   builder.
 - ``EXPLAIN`` and ``PROFILE`` — developer tooling.
 - ``-[:R*1..3]->`` — the legacy variable-length syntax, superseded by quantified path

@@ -8,6 +8,7 @@ from cypher_dsl.expressions.collections import list_, map_
 from cypher_dsl.expressions.functions import asterisk, count, element_id, fn, raw
 from cypher_dsl.expressions.labels import has_label, is_labeled, is_not_labeled
 from cypher_dsl.expressions.operators import boolean_operation, condition, contains, ends_with, in_, starts_with
+from cypher_dsl.expressions.path_patterns import path_pattern
 from cypher_dsl.expressions.subqueries import exists
 from cypher_dsl.expressions.values import asc, desc, lit, name, param
 from cypher_dsl.patterns.labels import ANY_LABEL, label
@@ -48,6 +49,7 @@ __all__ = [
     "optional_call_procedure",
     "optional_match",
     "param",
+    "path_pattern",
     "raw",
     "returning",
     "set_labels",

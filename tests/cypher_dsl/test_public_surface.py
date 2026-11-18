@@ -55,6 +55,7 @@ from cypher_dsl import (
     optional_call_procedure,
     optional_match,
     param,
+    path_pattern,
     raw,
     returning,
     same_binding,
@@ -160,6 +161,12 @@ RENDERS: dict[str, tuple[object, str]] = {
     ),
     "optional_match": (optional_match(PERSON).returning(PERSON["uid"]), "OPTIONAL MATCH (p:Person) RETURN p.uid"),
     "param": (returning(param("uid", "p1")), "RETURN $uid"),
+    "path_pattern": (
+        match(PERSON)
+        .where(path_pattern(PERSON.relationship_to(node("Person", properties={"uid": lit("p1")}), "WORKS_FOR")))
+        .returning(PERSON["uid"]),
+        "MATCH (p:Person) WHERE (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'}) RETURN p.uid",
+    ),
     "raw": (returning(raw("count(*) AS total")), "RETURN count(*) AS total"),
     "returning": (returning(name("total")), "RETURN total"),
     "set_labels": (match(PERSON).set_(set_labels(PERSON, "Member")), "MATCH (p:Person) SET p:Member"),

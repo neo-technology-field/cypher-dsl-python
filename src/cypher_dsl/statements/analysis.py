@@ -119,6 +119,8 @@ class _SemanticVisitor(_Visitor):
         if isinstance(node, NodePattern) and self._clauses:
             clause = self._clauses[-1]
             role = self._rules.resolve(clause).pattern_role(clause, node, self._frames[-1], self._clause_states[-1])
+            if role is None:
+                role = self._path_pattern_role(node)
             if role is not None:
                 self._facts[path] = NodePatternFacts(role)
         if isinstance(node, Parameter):
@@ -134,6 +136,25 @@ class _SemanticVisitor(_Visitor):
         self._nodes.pop()
         self._child_indices.pop()
         self._path.pop()
+
+    def _path_pattern_role(self, node_pattern: NodePattern) -> DeclarationRole | None:
+        """
+        Return the declaration role an enclosing path pattern expression assigns.
+
+        A clause whose own rule yields no role, such as the filter of a ``WITH`` or a
+        procedure call, still has to render the node patterns inside one of its
+        expressions. Those occurrences belong to the expression, so the expression's
+        rule supplies their role. A node pattern with no such ancestor keeps the
+        clause's answer.
+        """
+        from cypher_dsl.expressions.path_patterns import PathPatternExpression
+
+        for ancestor in reversed(self._nodes[:-1]):
+            if isinstance(ancestor, PathPatternExpression):
+                return self._rules.resolve(ancestor).pattern_role(
+                    ancestor, node_pattern, self._frames[-1], self._clause_states[-1]
+                )
+        return None
 
     def result(self) -> Analysis:
         """Return independent immutable products for the visited AST."""

@@ -300,6 +300,52 @@ A statement that uses one of the two selects the ``CYPHER 25`` prefix under
 ``Language.AUTO`` and is refused against an older release or a ``CYPHER 5`` pin.
 See :doc:`targets`.
 
+.. _path-pattern-expression:
+
+Test whether a path exists
+--------------------------
+
+A relationship chain can also act as a condition: ``path_pattern`` is true when the
+chain matches at least once. It is the concise counterpart of ``exists``, which can do
+everything a path pattern expression can and more, at the cost of a subquery body:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        lit,
+        match,
+        node,
+        path_pattern,
+    )
+
+    person = node("Person", name="p")
+    works_for = person.relationship_to(
+        node("Person", properties={"uid": lit("p1")}), "WORKS_FOR"
+    )
+    statement = (
+        match(person)
+        .where(~path_pattern(works_for) & (person["age"] > 30))
+        .returning(person["uid"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+      WHERE NOT (p:Person)-[:WORKS_FOR]->(:Person {uid: 'p1'}) AND p.age > 30
+    RETURN p.uid
+
+Every named node and relationship inside the chain must reference a name an earlier
+clause binds; the expression declares no names of its own, which is why a bare node
+pattern is not a path pattern expression at all — test a node's labels with
+``has_label`` instead. A projection item is not a boolean position, so a projection
+negates or combines the expression rather than returning it bare. When a pattern needs
+to bind its own names or hold clauses of its own, use ``exists``; see :doc:`subqueries`.
+
 Filter an UNWIND through WITH
 -----------------------------
 

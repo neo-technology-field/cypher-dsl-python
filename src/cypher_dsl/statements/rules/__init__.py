@@ -17,6 +17,7 @@ from cypher_dsl.statements.rules.base import (
 from cypher_dsl.statements.rules.flow import UnionRule, UnwindRule
 from cypher_dsl.statements.rules.labels import IsLabeledRule
 from cypher_dsl.statements.rules.match import MatchRule
+from cypher_dsl.statements.rules.path_patterns import PathPatternRule
 from cypher_dsl.statements.rules.procedures import ProcedureCallRule
 from cypher_dsl.statements.rules.projection import ProjectionRule
 from cypher_dsl.statements.rules.subqueries import CallRule, ExistsRule
@@ -30,6 +31,7 @@ __all__ = [
     "IsLabeledRule",
     "MatchRule",
     "MergeRule",
+    "PathPatternRule",
     "PatternState",
     "ProcedureCallRule",
     "ProjectionRule",
@@ -58,6 +60,7 @@ def shared_rules() -> dict[type, SemanticRule[Any]]:
     from cypher_dsl.clauses.unwind import UnwindClause
     from cypher_dsl.clauses.write import CreateClause, DeleteClause, MergeClause, RemoveClause, SetClause
     from cypher_dsl.expressions.labels import IsLabeled
+    from cypher_dsl.expressions.path_patterns import PathPatternExpression
     from cypher_dsl.expressions.subqueries import ExistsExpression
     from cypher_dsl.statements.composition import UnionStatement
 
@@ -71,6 +74,7 @@ def shared_rules() -> dict[type, SemanticRule[Any]]:
         IsLabeled: IsLabeledRule(),
         MatchClause: MatchRule(),
         MergeClause: MergeRule(),
+        PathPatternExpression: PathPatternRule(),
         ProcedureCallClause: ProcedureCallRule(),
         RemoveClause: RemoveRule(),
         ReturnClause: projection,

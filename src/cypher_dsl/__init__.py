@@ -38,6 +38,7 @@ from cypher_dsl.api import (
     optional_call_procedure,
     optional_match,
     param,
+    path_pattern,
     raw,
     returning,
     set_labels,
@@ -75,6 +76,7 @@ from cypher_dsl.expressions.collections import ListExpression, MapExpression
 from cypher_dsl.expressions.functions import Asterisk, ElementId, FunctionInvocation, RawExpression
 from cypher_dsl.expressions.labels import HasLabel, IsLabeled
 from cypher_dsl.expressions.operators import BinaryOperation, Comparison, Condition, UnaryOperation
+from cypher_dsl.expressions.path_patterns import PathPatternExpression
 from cypher_dsl.expressions.properties import Property, SubscriptExpression
 from cypher_dsl.expressions.subqueries import ExistsExpression
 from cypher_dsl.expressions.values import (
@@ -133,6 +135,7 @@ __all__ = [
     "NamedExpression",
     "NodePattern",
     "Parameter",
+    "PathPatternExpression",
     "PatternElement",
     "PatternProperties",
     "ProjectionInput",
@@ -193,6 +196,7 @@ __all__ = [
     "optional_call_procedure",
     "optional_match",
     "param",
+    "path_pattern",
     "raw",
     "returning",
     "same_binding",

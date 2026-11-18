@@ -31,6 +31,7 @@ from cypher_dsl import (
     name,
     node,
     param,
+    path_pattern,
     raw,
     returning,
     set_labels,
@@ -317,6 +318,7 @@ def test_shared_bindings_render_every_concrete_grammar_node() -> None:
         asterisk(),
         raw("n"),
         match(relationship).where((person["uid"] > 0) & (other["uid"] < 2)).returning(person).build(),
+        match(relationship).where(path_pattern(relationship)).returning(person).build(),
         match(person)
         .with_(person)
         .order_by(desc(person["uid"]))

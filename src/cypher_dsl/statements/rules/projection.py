@@ -9,6 +9,7 @@ from cypher_dsl.clauses.projection import ProjectionClause, WithClause
 from cypher_dsl.errors import DslError
 from cypher_dsl.expressions.base import Expression
 from cypher_dsl.expressions.functions import Asterisk, FunctionInvocation, RawExpression
+from cypher_dsl.expressions.path_patterns import PathPatternExpression
 from cypher_dsl.expressions.values import AliasedExpression, SortItem, Variable
 from cypher_dsl.patterns.nodes import NodePattern
 from cypher_dsl.statements.frames import ScopeFrame, is_unresolved_node, merge_names, reference_names
@@ -258,11 +259,28 @@ class ProjectionRule(SemanticRule[ProjectionClause]):
         return ScopeFrame(names, True, frame.certified, frame.reserved, frame.bindings, frame.unresolved)
 
     def validate(self, node: ProjectionClause, frame: ScopeFrame) -> None:
+        self._reject_bare_path_pattern(node)
         check_references(node.expressions, reference_names(frame), node.keyword)
         validate_projection_modifiers(frame, node)
         self._check_reserved(node, frame)
         if isinstance(node, WithClause) and node.where is not None:
             check_references((node.where.predicate,), _modifier_scope(frame, node), "WHERE")
+
+    def _reject_bare_path_pattern(self, node: ProjectionClause) -> None:
+        """
+        Reject a path pattern expression a projection cannot hold.
+
+        A path pattern expression is valid only where Cypher expects a boolean. A
+        ``RETURN`` or ``WITH`` item is a value position, so the bare form is refused
+        while the negated and boolean-combined forms stay valid.
+        """
+        for expression in node.expressions:
+            inner = expression.expression if isinstance(expression, AliasedExpression) else expression
+            if isinstance(inner, PathPatternExpression):
+                raise DslError(
+                    f"A {node.keyword} item is not a boolean position for a path pattern expression. "
+                    "Negate it with ~ or combine it with a boolean operator."
+                )
 
     def _check_reserved(self, node: ProjectionClause, frame: ScopeFrame) -> None:
         """Reject a ``WITH`` item that aliases an imported name to another value."""
