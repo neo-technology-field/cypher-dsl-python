@@ -16,14 +16,18 @@ from cypher_dsl import (
     UnaryOperation,
     boolean_operation,
     condition,
+    contains,
+    ends_with,
     in_,
     lit,
     name,
     param,
     raw,
     returning,
+    starts_with,
 )
 from cypher_dsl.errors import DslError
+from cypher_dsl.expressions.operators import comparison_operation
 
 
 def _render(value):
@@ -196,6 +200,49 @@ def test_in_renders_membership():
     membership = in_(name("x"), ["a", "b"])
     assert isinstance(membership, Condition)
     assert _render(membership) == "RETURN x IN ['a', 'b']"
+
+
+def test_string_predicates_render():
+    assert _render(starts_with(name("x"), "Ada")) == "RETURN x STARTS WITH 'Ada'"
+    assert _render(ends_with(name("x"), "Lovelace")) == "RETURN x ENDS WITH 'Lovelace'"
+    assert _render(contains(name("x"), "love")) == "RETURN x CONTAINS 'love'"
+
+
+def test_string_predicate_right_operand_can_be_a_parameter_or_expression():
+    assert _render(starts_with(name("x"), param("prefix"))) == "RETURN x STARTS WITH $prefix"
+    assert _render(contains(name("x"), lit("a") + lit("b"))) == "RETURN x CONTAINS 'a' + 'b'"
+
+
+def test_string_predicates_are_conditions():
+    for builder in (starts_with, ends_with, contains):
+        assert isinstance(builder(name("x"), "a"), Condition)
+        assert isinstance(builder(name("x"), "a"), Comparison)
+
+
+def test_string_predicates_are_comparison_level():
+    combined = (starts_with(name("x"), "a") & contains(name("y"), "b")).alias("hit")
+    assert _render(combined) == "RETURN x STARTS WITH 'a' AND y CONTAINS 'b' AS hit"
+
+
+def test_negation_of_a_string_predicate_stays_unparenthesised():
+    assert _render(~starts_with(name("x"), "a")) == "RETURN NOT x STARTS WITH 'a'"
+
+
+def test_string_operators_are_accepted_by_comparison_operation():
+    built = comparison_operation("CONTAINS", name("x"), "a")
+    assert _render(built) == "RETURN x CONTAINS 'a'"
+
+
+def test_unknown_string_operators_are_rejected():
+    with pytest.raises(DslError):
+        comparison_operation("START WITH", name("x"), "a")
+
+
+def test_string_predicates_reject_alias_operands():
+    with pytest.raises(DslError):
+        starts_with(name("x").alias("y"), "a")
+    with pytest.raises(DslError):
+        contains(name("x"), name("y").alias("z"))
 
 
 def test_static_property_access_is_a_named_property():

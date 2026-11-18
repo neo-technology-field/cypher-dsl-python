@@ -163,6 +163,37 @@ variables:
     MATCH (p:Person) WHERE p.kind IN $kinds RETURN p
     MATCH (p:Person) WHERE p.uid IN [a, b] RETURN p
 
+String predicates build with ``starts_with``, ``ends_with`` and ``contains``. Each takes
+the expression to test and the text to look for, which may be a :ref:`literal <literal>`,
+a parameter or any expression:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        contains,
+        ends_with,
+        match,
+        node,
+        param,
+        starts_with,
+    )
+
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(starts_with(person["uid"], param("prefix")))
+        .returning(person["uid"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person) WHERE p.uid STARTS WITH $prefix RETURN p.uid
+
 A parameter that already holds a boolean needs ``condition()``. The library does not infer
 server-side types, so the caller states that the value is a predicate:
 

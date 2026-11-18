@@ -6,7 +6,7 @@ from cypher_dsl.clauses.unwind import unwind
 from cypher_dsl.clauses.write import assign, create, merge, set_labels, update_properties
 from cypher_dsl.expressions.collections import list_, map_
 from cypher_dsl.expressions.functions import asterisk, count, element_id, fn, raw
-from cypher_dsl.expressions.operators import boolean_operation, condition, in_
+from cypher_dsl.expressions.operators import boolean_operation, condition, contains, ends_with, in_, starts_with
 from cypher_dsl.expressions.values import asc, desc, lit, name, param
 from cypher_dsl.patterns.nodes import node
 from cypher_dsl.statements.builder import returning, with_
@@ -20,10 +20,12 @@ __all__ = [
     "call",
     "call_procedure",
     "condition",
+    "contains",
     "count",
     "create",
     "desc",
     "element_id",
+    "ends_with",
     "fn",
     "in_",
     "list_",
@@ -40,6 +42,7 @@ __all__ = [
     "raw",
     "returning",
     "set_labels",
+    "starts_with",
     "union",
     "unwind",
     "update_properties",

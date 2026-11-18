@@ -31,10 +31,12 @@ from cypher_dsl import (
     boolean_operation,
     call_procedure,
     condition,
+    contains,
     count,
     create,
     desc,
     element_id,
+    ends_with,
     fn,
     in_,
     list_,
@@ -51,6 +53,7 @@ from cypher_dsl import (
     returning,
     same_binding,
     set_labels,
+    starts_with,
     structurally_equal,
     thaw_value,
     union,
@@ -90,6 +93,10 @@ RENDERS: dict[str, tuple[object, str]] = {
         match(PERSON).where(condition(PERSON["uid"] == "p1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p",
     ),
+    "contains": (
+        match(PERSON).where(contains(PERSON["uid"], "p1")).returning(PERSON),
+        "MATCH (p:Person) WHERE p.uid CONTAINS 'p1' RETURN p",
+    ),
     "count": (returning(count(PERSON).alias("people")), "RETURN count(p) AS people"),
     "create": (create(node("Person", name="p", properties={"uid": "p1"})), "CREATE (p:Person {uid: 'p1'})"),
     "desc": (
@@ -99,6 +106,10 @@ RENDERS: dict[str, tuple[object, str]] = {
     "element_id": (
         match(PERSON).returning(element_id(PERSON).alias("identity")),
         "MATCH (p:Person) RETURN elementId(p) AS identity",
+    ),
+    "ends_with": (
+        match(PERSON).where(ends_with(PERSON["uid"], "1")).returning(PERSON),
+        "MATCH (p:Person) WHERE p.uid ENDS WITH '1' RETURN p",
     ),
     "fn": (returning(fn("toUpper", "ada").alias("loud")), "RETURN toUpper('ada') AS loud"),
     "in_": (
@@ -134,6 +145,10 @@ RENDERS: dict[str, tuple[object, str]] = {
     "raw": (returning(raw("count(*) AS total")), "RETURN count(*) AS total"),
     "returning": (returning(name("total")), "RETURN total"),
     "set_labels": (match(PERSON).set_(set_labels(PERSON, "Member")), "MATCH (p:Person) SET p:Member"),
+    "starts_with": (
+        match(PERSON).where(starts_with(PERSON["uid"], "p")).returning(PERSON),
+        "MATCH (p:Person) WHERE p.uid STARTS WITH 'p' RETURN p",
+    ),
     "union": (
         union(match(PERSON).returning(PERSON["uid"].alias("uid")), match(MOVIE).returning(MOVIE["uid"].alias("uid"))),
         "MATCH (p:Person) RETURN p.uid AS uid UNION MATCH (m:Movie) RETURN m.uid AS uid",

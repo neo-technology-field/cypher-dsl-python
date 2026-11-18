@@ -25,7 +25,10 @@ from cypher_dsl.expressions.base import (
 _ARITHMETIC_OPERATORS: Final = frozenset({"+", "-", "*", "/", "%"})
 _BOOLEAN_OPERATORS: Final = frozenset({"AND", "OR"})
 _NULL_OPERATORS: Final = frozenset({"IS NULL", "IS NOT NULL"})
-_COMPARISON_OPERATORS: Final = frozenset({"=", "<>", "<", "<=", ">", ">=", "IN"}) | _NULL_OPERATORS
+_STRING_PREDICATE_OPERATORS: Final = frozenset({"STARTS WITH", "ENDS WITH", "CONTAINS"})
+_COMPARISON_OPERATORS: Final = (
+    frozenset({"=", "<>", "<", "<=", ">", ">=", "IN"}) | _NULL_OPERATORS | _STRING_PREDICATE_OPERATORS
+)
 _UNARY_OPERATORS: Final = frozenset({"NOT", "-", "+"})
 
 
@@ -44,10 +47,10 @@ class Condition(Expression):
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
 class Comparison(Condition):
     """
-    A binary comparison or an ``IS NULL`` test.
+    A binary comparison, string predicate or ``IS NULL`` test.
 
     Attributes:
-        operator: One of the comparison, membership or null operators.
+        operator: One of the comparison, membership, string-predicate or null operators.
         left: Expression on the left of the operator.
         right: Expression on the right, or ``None`` for a postfix null test.
     """
@@ -205,10 +208,11 @@ def arithmetic_operation(operator: str, left: Expression, right: ExpressionInput
 
 def comparison_operation(operator: str, left: Expression, right: ExpressionInput) -> Comparison:
     """
-    Build a comparison, membership test or null predicate.
+    Build a comparison, membership test, string predicate or null predicate.
 
     Args:
-        operator: Comparison or membership operator, or a postfix null operator.
+        operator: Comparison, membership, string-predicate (``STARTS WITH``, ``ENDS WITH``,
+            ``CONTAINS``) or postfix null operator.
         left: Left operand, or the tested expression for a null operator.
         right: Right operand or literal value.
 
@@ -322,6 +326,48 @@ def in_(value: ExpressionInput, collection: ExpressionInput) -> Condition:
     return Comparison("IN", coerce_expression(value), coerce_expression(collection))
 
 
+def starts_with(value: ExpressionInput, prefix: ExpressionInput) -> Condition:
+    """
+    Build a ``STARTS WITH`` string predicate.
+
+    Args:
+        value: Expression whose text is tested.
+        prefix: Text the value must start with, or an expression producing it.
+
+    Returns:
+        A predicate rendering ``value STARTS WITH prefix``.
+    """
+    return Comparison("STARTS WITH", coerce_expression(value), coerce_expression(prefix))
+
+
+def ends_with(value: ExpressionInput, suffix: ExpressionInput) -> Condition:
+    """
+    Build an ``ENDS WITH`` string predicate.
+
+    Args:
+        value: Expression whose text is tested.
+        suffix: Text the value must end with, or an expression producing it.
+
+    Returns:
+        A predicate rendering ``value ENDS WITH suffix``.
+    """
+    return Comparison("ENDS WITH", coerce_expression(value), coerce_expression(suffix))
+
+
+def contains(value: ExpressionInput, substring: ExpressionInput) -> Condition:
+    """
+    Build a ``CONTAINS`` string predicate.
+
+    Args:
+        value: Expression whose text is tested.
+        substring: Text the value must contain, or an expression producing it.
+
+    Returns:
+        A predicate rendering ``value CONTAINS substring``.
+    """
+    return Comparison("CONTAINS", coerce_expression(value), coerce_expression(substring))
+
+
 __all__ = [
     "BinaryOperation",
     "Comparison",
@@ -331,7 +377,10 @@ __all__ = [
     "boolean_operation",
     "comparison_operation",
     "condition",
+    "contains",
+    "ends_with",
     "in_",
+    "starts_with",
     "unary_condition",
     "unary_operation",
 ]
