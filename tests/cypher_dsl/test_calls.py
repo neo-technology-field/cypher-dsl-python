@@ -28,6 +28,7 @@ from cypher_dsl import (
     fn,
     lit,
     match,
+    matches,
     merge,
     name,
     node,
@@ -1298,14 +1299,13 @@ def test_ported_procedure_calls_it_where() -> None:
     statement = (
         call_procedure("dbms.listConfig", "browser")
         .yielding("name")
-        .where(name("name") == lit("browser.allowlist"))
+        .where(matches(name("name"), lit("browser.allowlist")))
         .returning(asterisk())
     )
-    # Upstream filters with the regex operator "=~", which this library does not model. The
-    # scenario keeps the argument, the yield, the filter position and the asterisk return.
-    # "name" is a reserved word here, so the renderer quotes it; upstream does not.
+    # The port filters with the regex operator. "name" is a reserved word here, so the
+    # renderer quotes it; upstream does not.
     assert RENDERER.render(statement).cypher == (
-        "CALL dbms.listConfig('browser') YIELD `name` WHERE `name` = 'browser.allowlist' RETURN *"
+        "CALL dbms.listConfig('browser') YIELD `name` WHERE `name` =~ 'browser.allowlist' RETURN *"
     )
 
 

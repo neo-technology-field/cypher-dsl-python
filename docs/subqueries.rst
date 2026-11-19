@@ -213,11 +213,11 @@ Test whether a subquery matches
 -------------------------------
 
 ``exists`` builds an ``EXISTS { ... }`` subquery expression. Its value is a predicate, so
-it filters in ``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|`` and ``~``.
-Unlike a ``CALL`` subquery, the body reads the enclosing scope without a scope clause, so
-an outer name is visible inside the body as it is outside. The body must be a read query,
-and the names it binds stay inside the expression. For a chain that only references
-names the outer query already binds, :ref:`path pattern expressions
+it filters in ``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|``, ``^`` and
+``~``. Unlike a ``CALL`` subquery, the body reads the enclosing scope without a scope
+clause, so an outer name is visible inside the body as it is outside. The body must be a
+read query, and the names it binds stay inside the expression. For a chain that only
+references names the outer query already binds, :ref:`path pattern expressions
 <path-pattern-expression>` are the concise form without a body.
 
 .. code-block:: python

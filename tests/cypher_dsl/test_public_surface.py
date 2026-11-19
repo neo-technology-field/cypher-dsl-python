@@ -32,6 +32,7 @@ from cypher_dsl import (
     boolean_operation,
     call_procedure,
     collect_subquery,
+    concat,
     condition,
     contains,
     count,
@@ -51,6 +52,7 @@ from cypher_dsl import (
     lit,
     map_,
     match,
+    matches,
     merge,
     name,
     node,
@@ -105,6 +107,10 @@ RENDERS: dict[str, tuple[object, str]] = {
         .returning(PERSON["name"]),
         "MATCH (p:Person) WHERE 'Ozzy' IN COLLECT { MATCH (p)-[:HAS_DOG]->(d:Dog) RETURN d.`name` } RETURN p.`name`",
     ),
+    "concat": (
+        match(PERSON).returning(concat(PERSON["first_name"], PERSON["last_name"]).alias("who")),
+        "MATCH (p:Person) RETURN p.first_name || p.last_name AS who",
+    ),
     "condition": (
         match(PERSON).where(condition(PERSON["uid"] == "p1")).returning(PERSON),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p",
@@ -156,6 +162,10 @@ RENDERS: dict[str, tuple[object, str]] = {
     "match": (
         match(PERSON).where(PERSON["uid"] == "p1").returning(PERSON["uid"]),
         "MATCH (p:Person) WHERE p.uid = 'p1' RETURN p.uid",
+    ),
+    "matches": (
+        match(PERSON).where(matches(PERSON["email"], ".*@company.com")).returning(PERSON["uid"]),
+        "MATCH (p:Person) WHERE p.email =~ '.*@company.com' RETURN p.uid",
     ),
     "merge": (merge(PERSON).on_create(assign(PERSON["uid"], "p1")), "MERGE (p:Person) ON CREATE SET p.uid = 'p1'"),
     "name": (returning(name("total")), "RETURN total"),

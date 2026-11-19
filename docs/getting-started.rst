@@ -236,9 +236,9 @@ also requires a direction.
 Combine conditions with the DSL operators
 -----------------------------------------
 
-Python cannot overload ``and``, ``or`` or ``not``, so a condition tree uses ``&``, ``|``
-and ``~``. Keep each comparison in its own parentheses, because Python binds ``&`` tighter
-than ``>``:
+Python cannot overload ``and``, ``or`` or ``not``, so a condition tree uses ``&``, ``|``,
+``^`` and ``~``. Keep each comparison in its own parentheses, because Python binds ``&``
+tighter than ``>``:
 
 .. code-block:: python
 
@@ -297,7 +297,8 @@ Escape to raw expression text
 -----------------------------
 
 ``raw(text)`` emits trusted expression text unchanged. It covers expression syntax with no
-builder in this release, such as the regular-expression match operator:
+builder in this release, and expression text that arrives already written. A regex match
+has ``matches``; here the whole predicate is the text:
 
 .. code-block:: python
 

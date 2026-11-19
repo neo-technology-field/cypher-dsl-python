@@ -78,10 +78,9 @@ A later clause can optionally match from a variable an earlier clause bound.
 ``WHERE``
 ~~~~~~~~~
 
-Conditions build from comparison operators, ``&`` (AND), ``|`` (OR) and ``~`` (NOT), and
-from ``in_``, ``starts_with``, ``ends_with`` and ``contains``. Python cannot overload
-``and``, ``or`` and ``not``, so the symbol forms are the operators; a condition read from
-a parameter needs ``condition()``.
+Conditions combine comparisons with ``&`` (AND), ``|`` (OR), ``^`` (XOR) and ``~``
+(NOT), plus the membership, string and regular-expression predicates. :doc:`reading`
+documents each builder in turn.
 
 .. code-block:: python
 
@@ -168,10 +167,10 @@ Path pattern expressions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``path_pattern`` turns a relationship chain into a boolean: it is true when the chain
-matches at least once. It is a predicate, so ``&``, ``|`` and ``~`` combine it with
-other conditions. Every named node and relationship in the chain must reference a name
-an earlier clause binds; the expression declares none of its own: an exact restatement
-renders as the bare variable.
+matches at least once. It is a predicate, so ``&``, ``|``, ``^`` and ``~`` combine it
+with other conditions. Every named node and relationship in the chain must reference a
+name an earlier clause binds; the expression declares none of its own: an exact
+restatement renders as the bare variable.
 
 .. code-block:: python
 
@@ -572,8 +571,8 @@ the named output columns.
 ~~~~~~~~~~
 
 ``exists`` builds an existential subquery expression. It is a predicate, so it filters in
-``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|`` and ``~``. The body is a
-read subquery that sees the enclosing scope without a scope clause.
+``WHERE``, projects in ``RETURN`` and combines with ``&``, ``|``, ``^`` and ``~``.
+The body is a read subquery that sees the enclosing scope without a scope clause.
 
 .. code-block:: python
 
@@ -677,9 +676,10 @@ may end without a ``RETURN``; ``COLLECT`` builds a list and every branch must en
 Expressions
 -----------
 
-Comparisons, boolean operators, arithmetic, ``IN``, string predicates, literals,
-parameters, lists, maps and subscripts are accepted wherever the grammar takes a value.
-A property read can use a computed key for a dynamic property name:
+Comparisons, boolean operators, arithmetic, ``IN``, string predicates, the ``=~`` match,
+``||`` concatenation, literals, parameters, lists, maps and subscripts are accepted
+wherever the grammar takes a value. A property read can use a computed key for a dynamic
+property name:
 
 .. code-block:: python
 
@@ -696,8 +696,25 @@ A property read can use a computed key for a dynamic property name:
 
     MATCH (p:Person) WHERE p[$prop] > 40 RETURN p.display_name
 
+``concat`` builds the ``||`` concatenation, which joins only strings:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, concat, match, node
+
+    person = node("Person", name="p")
+    statement = match(person).returning(
+        concat(concat(person["first_name"], " "), person["last_name"])
+    )
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person) RETURN p.first_name || ' ' || p.last_name
+
 A boolean read from a parameter needs ``condition()``. A bare ``and``, ``or`` or ``not``
-cannot be overloaded, so conditions combine with ``&``, ``|`` and ``~``.
+cannot be overloaded, so conditions combine with ``&``, ``|``, ``^`` and ``~``.
 
 Functions
 ---------
@@ -743,9 +760,6 @@ Not yet
 - ``SEARCH n IN (VECTOR INDEX idx FOR $v) SCORE AS s``, and the ``FULLTEXT`` variation —
   vector and full-text search.
 - ``CASE WHEN ... THEN ... ELSE ... END`` — a conditional expression.
-- ``p.email =~ '...'`` — a regular expression match.
-- ``a || b`` — string concatenation.
-- ``XOR`` — exclusive disjunction between conditions.
 - ``[x IN coll WHERE p | e]`` and ``reduce()`` — list comprehension and fold.
 - ``all(x IN coll WHERE p)``, ``any``, ``none``, ``single`` — quantified list
   predicates.

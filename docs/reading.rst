@@ -61,9 +61,37 @@ attached after it belongs to the optional match:
 Build conditions with the DSL operators
 ---------------------------------------
 
-Python cannot overload ``and``, ``or`` and ``not``, so conditions use ``&``, ``|`` and
-``~``. Keep each comparison in its own parentheses, because Python binds ``&`` tighter
-than ``>``:
+Python cannot overload ``and``, ``or`` and ``not``, so conditions use ``&``, ``|``,
+``^`` and ``~``. The table lists every condition builder:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Python
+     - Renders
+   * - ``==``, ``!=``
+     - ``=``, ``<>``
+   * - ``<``, ``<=``, ``>``, ``>=``
+     - ``<``, ``<=``, ``>``, ``>=``
+   * - ``== None``, ``!= None``
+     - ``IS NULL``, ``IS NOT NULL``
+   * - ``&``, ``|``, ``^``, ``~``
+     - ``AND``, ``OR``, ``XOR``, ``NOT``
+   * - ``in_(value, collection)``
+     - ``value IN collection``
+   * - ``starts_with(value, prefix)``
+     - ``value STARTS WITH prefix``
+   * - ``ends_with(value, suffix)``
+     - ``value ENDS WITH suffix``
+   * - ``contains(value, substring)``
+     - ``value CONTAINS substring``
+   * - ``matches(value, pattern)``
+     - ``value =~ pattern``
+   * - ``condition(value)``
+     - ``value`` unchanged, for a boolean read from a parameter
+
+Keep each comparison in its own parentheses, because Python binds ``&`` tighter than
+``>``:
 
 .. code-block:: python
 
@@ -90,6 +118,33 @@ than ``>``:
 
 The renderer adds parentheses where Cypher precedence requires them, so the text follows
 the Cypher precedence rules rather than the layout of the Python source.
+
+``^`` builds ``XOR``, which is true when exactly one side is true. Python and Cypher
+give ``&``, ``^`` and ``|`` the same relative order, so grouping carries over between
+the two:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, match, node, param
+
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(
+            (person["age"] > param("min_age", 30))
+            ^ (person["kind"] == "actor")
+        )
+        .returning(person["display_name"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person)
+      WHERE p.age > $min_age XOR p.kind = 'actor'
+    RETURN p.display_name
 
 Comparing an expression with ``None`` builds ``IS NULL`` and ``IS NOT NULL``:
 
@@ -194,6 +249,34 @@ a parameter or any expression:
 
     MATCH (p:Person) WHERE p.uid STARTS WITH $prefix RETURN p.uid
 
+A regular expression match builds with ``matches``. The pattern is an ordinary
+:ref:`literal <literal>`, a parameter or any expression:
+
+.. code-block:: python
+
+    from cypher_dsl import (
+        Configuration,
+        Renderer,
+        match,
+        matches,
+        node,
+        param,
+    )
+
+    person = node("Person", name="p")
+    statement = (
+        match(person)
+        .where(matches(person["email"], param("pattern")))
+        .returning(person["uid"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person) WHERE p.email =~ $pattern RETURN p.uid
+
 A parameter that already holds a boolean needs ``condition()``. The library does not infer
 server-side types, so the caller states that the value is a predicate:
 
@@ -261,8 +344,8 @@ expression, and a relationship is tested the same way as a node:
     MATCH (c:Person)-[r]->(p:Person) WHERE p:Manager|Director
     RETURN p.uid, r:WORKS_FOR AS reports
 
-The predicate is an ordinary condition, so ``&``, ``|`` and ``~`` combine it with other
-predicates, and a projection can return it under an alias.
+The predicate is an ordinary condition, so ``&``, ``|``, ``^`` and ``~`` combine it with
+other predicates, and a projection can return it under an alias.
 
 ``is_labeled`` and ``is_not_labeled`` render the ``IS [NOT] LABELED`` form, which
 Neo4j 2026.04 introduced for Cypher 25. ``IS NOT LABELED`` negates the whole label
@@ -559,6 +642,26 @@ Arithmetic and string concatenation build expressions through the Python operato
 
 A string index on an expression reads a static property. An integer or expression index
 builds a subscript, which keeps a parameter a parameter instead of interpolating its text.
+
+``concat`` renders the ``||`` operator, which the grammar groups with ``+`` and
+``-``. Unlike ``+``, ``||`` joins only strings and converts nothing, which makes it
+the GQL-conformant form:
+
+.. code-block:: python
+
+    from cypher_dsl import Configuration, Renderer, concat, match, node
+
+    person = node("Person", name="p")
+    statement = match(person).returning(
+        concat(concat(person["first_name"], " "), person["last_name"])
+    )
+
+    renderer = Renderer.get(Configuration(server_version="5.26"))
+    print(renderer.render(statement).cypher)
+
+.. code-block:: cypher
+
+    MATCH (p:Person) RETURN p.first_name || ' ' || p.last_name
 
 ``map_`` builds a map value whose entries are expressions, which is how a projection
 shapes a result object:

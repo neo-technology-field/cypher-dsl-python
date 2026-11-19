@@ -7,7 +7,16 @@ from cypher_dsl.clauses.write import assign, create, merge, set_labels, update_p
 from cypher_dsl.expressions.collections import list_, map_
 from cypher_dsl.expressions.functions import asterisk, count, element_id, fn, raw
 from cypher_dsl.expressions.labels import has_label, is_labeled, is_not_labeled
-from cypher_dsl.expressions.operators import boolean_operation, condition, contains, ends_with, in_, starts_with
+from cypher_dsl.expressions.operators import (
+    boolean_operation,
+    concat,
+    condition,
+    contains,
+    ends_with,
+    in_,
+    matches,
+    starts_with,
+)
 from cypher_dsl.expressions.path_patterns import path_pattern
 from cypher_dsl.expressions.subqueries import collect_subquery, count_subquery, exists
 from cypher_dsl.expressions.values import asc, desc, lit, name, param
@@ -25,6 +34,7 @@ __all__ = [
     "call",
     "call_procedure",
     "collect_subquery",
+    "concat",
     "condition",
     "contains",
     "count",
@@ -44,6 +54,7 @@ __all__ = [
     "lit",
     "map_",
     "match",
+    "matches",
     "merge",
     "name",
     "node",

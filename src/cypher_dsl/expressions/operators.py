@@ -23,11 +23,17 @@ from cypher_dsl.expressions.base import (
 )
 
 _ARITHMETIC_OPERATORS: Final = frozenset({"+", "-", "*", "/", "%"})
-_BOOLEAN_OPERATORS: Final = frozenset({"AND", "OR"})
+_CONCATENATION_OPERATORS: Final = frozenset({"||"})
+_BOOLEAN_OPERATORS: Final = frozenset({"AND", "OR", "XOR"})
+_BINARY_OPERATORS: Final = _ARITHMETIC_OPERATORS | _BOOLEAN_OPERATORS | _CONCATENATION_OPERATORS
 _NULL_OPERATORS: Final = frozenset({"IS NULL", "IS NOT NULL"})
 _STRING_PREDICATE_OPERATORS: Final = frozenset({"STARTS WITH", "ENDS WITH", "CONTAINS"})
+_REGEX_OPERATORS: Final = frozenset({"=~"})
 _COMPARISON_OPERATORS: Final = (
-    frozenset({"=", "<>", "<", "<=", ">", ">=", "IN"}) | _NULL_OPERATORS | _STRING_PREDICATE_OPERATORS
+    frozenset({"=", "<>", "<", "<=", ">", ">=", "IN"})
+    | _NULL_OPERATORS
+    | _STRING_PREDICATE_OPERATORS
+    | _REGEX_OPERATORS
 )
 _UNARY_OPERATORS: Final = frozenset({"NOT", "-", "+"})
 
@@ -47,10 +53,10 @@ class Condition(Expression):
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
 class Comparison(Condition):
     """
-    A binary comparison, string predicate or ``IS NULL`` test.
+    A binary comparison, string predicate, regex match or ``IS NULL`` test.
 
     Attributes:
-        operator: One of the comparison, membership, string-predicate or null operators.
+        operator: One of the comparison, membership, string-predicate, regex or null operators.
         left: Expression on the left of the operator.
         right: Expression on the right, or ``None`` for a postfix null test.
     """
@@ -75,7 +81,7 @@ class Comparison(Condition):
 
     @property
     def precedence(self) -> Precedence:
-        """Return the comparison level, shared by equality and membership."""
+        """Return the comparison level, which every comparison operator shares."""
         return Precedence.COMPARISON
 
     def children(self) -> tuple[AstNode, ...]:
@@ -86,7 +92,7 @@ class Comparison(Condition):
 @dataclass(frozen=True, eq=False, weakref_slot=True, slots=True)
 class BinaryOperation(Expression):
     """
-    Two operands joined by an arithmetic or boolean operator.
+    Two operands joined by an arithmetic, concatenation or boolean operator.
 
     Attributes:
         operator: Symbol or logical word between the operands.
@@ -99,8 +105,8 @@ class BinaryOperation(Expression):
     right: Expression
 
     def __post_init__(self) -> None:
-        """Reject an operator that is neither arithmetic nor logical."""
-        if self.operator not in _ARITHMETIC_OPERATORS | _BOOLEAN_OPERATORS:
+        """Reject an operator that is neither arithmetic, concatenation nor logical."""
+        if self.operator not in _BINARY_OPERATORS:
             raise DslError(f"{self.operator!r} is not a supported binary operator.")
         require_operand(self.left)
         require_operand(self.right)
@@ -112,7 +118,9 @@ class BinaryOperation(Expression):
             return Precedence.AND
         if self.operator == "OR":
             return Precedence.OR
-        if self.operator in {"+", "-"}:
+        if self.operator == "XOR":
+            return Precedence.XOR
+        if self.operator in {"+", "-", "||"}:
             return Precedence.ADDITIVE
         return Precedence.MULTIPLICATIVE
 
@@ -157,7 +165,7 @@ class _Negation(UnaryOperation, Condition):
 
 
 class _LogicalOperation(BinaryOperation, Condition):
-    """An ``AND`` or ``OR`` operation, which is a predicate rather than a value."""
+    """An ``AND``, ``OR`` or ``XOR`` operation, which is a predicate rather than a value."""
 
     __slots__ = ()
 
@@ -208,11 +216,11 @@ def arithmetic_operation(operator: str, left: Expression, right: ExpressionInput
 
 def comparison_operation(operator: str, left: Expression, right: ExpressionInput) -> Comparison:
     """
-    Build a comparison, membership test, string predicate or null predicate.
+    Build a comparison, membership test, string predicate, regex match or null predicate.
 
     Args:
         operator: Comparison, membership, string-predicate (``STARTS WITH``, ``ENDS WITH``,
-            ``CONTAINS``) or postfix null operator.
+            ``CONTAINS``), regex (``=~``) or postfix null operator.
         left: Left operand, or the tested expression for a null operator.
         right: Right operand or literal value.
 
@@ -229,13 +237,13 @@ def comparison_operation(operator: str, left: Expression, right: ExpressionInput
 
 def boolean_operation(operator: str, left: Expression, right: ExpressionInput) -> Condition:
     """
-    Join two expressions with ``AND`` or ``OR``.
+    Join two expressions with ``AND``, ``OR`` or ``XOR``.
 
     Python's ``and`` and ``or`` cannot be overloaded, so this function is the only
     explicit entry point for a caller that does not use the operator syntax.
 
     Args:
-        operator: ``AND`` or ``OR``, case-insensitive.
+        operator: ``AND``, ``OR`` or ``XOR``, case-insensitive.
         left: Left expression.
         right: Right expression or literal value.
 
@@ -247,7 +255,7 @@ def boolean_operation(operator: str, left: Expression, right: ExpressionInput) -
     """
     normalised = operator.strip().upper()
     if normalised not in _BOOLEAN_OPERATORS:
-        raise DslError(f"{operator!r} is not a logical operator. Use AND or OR.")
+        raise DslError(f"{operator!r} is not a logical operator. Use AND, OR or XOR.")
     return _LogicalOperation(normalised, require_operand(left), coerce_expression(right))
 
 
@@ -368,6 +376,37 @@ def contains(value: ExpressionInput, substring: ExpressionInput) -> Condition:
     return Comparison("CONTAINS", coerce_expression(value), coerce_expression(substring))
 
 
+def matches(value: ExpressionInput, pattern: ExpressionInput) -> Condition:
+    """
+    Build a ``=~`` regular expression match.
+
+    Args:
+        value: Expression whose text is tested.
+        pattern: Regular expression, or an expression producing one.
+
+    Returns:
+        A predicate rendering ``value =~ pattern``.
+    """
+    return Comparison("=~", coerce_expression(value), coerce_expression(pattern))
+
+
+def concat(left: ExpressionInput, right: ExpressionInput) -> BinaryOperation:
+    """
+    Build a ``||`` string concatenation.
+
+    Unlike ``+``, ``||`` joins only strings and converts no other value type,
+    which makes it the GQL-conformant form.
+
+    Args:
+        left: Left operand. A bare string is a literal value.
+        right: Right operand or literal value.
+
+    Returns:
+        A binary operation rendering ``left || right``.
+    """
+    return BinaryOperation("||", coerce_expression(left), coerce_expression(right))
+
+
 __all__ = [
     "BinaryOperation",
     "Comparison",
@@ -376,10 +415,12 @@ __all__ = [
     "arithmetic_operation",
     "boolean_operation",
     "comparison_operation",
+    "concat",
     "condition",
     "contains",
     "ends_with",
     "in_",
+    "matches",
     "starts_with",
     "unary_condition",
     "unary_operation",

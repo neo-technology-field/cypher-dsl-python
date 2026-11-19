@@ -15,11 +15,13 @@ from cypher_dsl import (
     SymbolicName,
     UnaryOperation,
     boolean_operation,
+    concat,
     condition,
     contains,
     ends_with,
     in_,
     lit,
+    matches,
     name,
     param,
     raw,
@@ -171,7 +173,7 @@ def test_implicit_and_explicit_null_ordering_operands_agree():
 
 def test_boolean_operation_rejects_unknown_logical_operators():
     with pytest.raises(DslError, match="logical operator"):
-        boolean_operation("XOR", condition(name("a")), condition(name("b")))
+        boolean_operation("XNOR", condition(name("a")), condition(name("b")))
 
 
 def test_unary_operation_is_arithmetic_only():
@@ -243,6 +245,87 @@ def test_string_predicates_reject_alias_operands():
         starts_with(name("x").alias("y"), "a")
     with pytest.raises(DslError):
         contains(name("x"), name("y").alias("z"))
+
+
+def test_regex_match_renders():
+    assert _render(matches(name("x"), "Ada.*")) == "RETURN x =~ 'Ada.*'"
+
+
+def test_regex_match_pattern_can_be_a_parameter_or_expression():
+    assert _render(matches(name("x"), param("pattern"))) == "RETURN x =~ $pattern"
+    assert _render(matches(name("x"), lit("a") + lit("b"))) == "RETURN x =~ 'a' + 'b'"
+
+
+def test_regex_match_is_a_comparison_level_condition():
+    predicate = matches(name("x"), "A")
+    assert isinstance(predicate, Comparison)
+    assert isinstance(predicate, Condition)
+    combined = (predicate & contains(name("y"), "b")).alias("hit")
+    assert _render(combined) == "RETURN x =~ 'A' AND y CONTAINS 'b' AS hit"
+
+
+def test_negation_of_a_regex_match_stays_unparenthesised():
+    assert _render(~matches(name("x"), "A")) == "RETURN NOT x =~ 'A'"
+
+
+def test_regex_operator_is_accepted_by_comparison_operation():
+    built = comparison_operation("=~", name("x"), "A")
+    assert _render(built) == "RETURN x =~ 'A'"
+
+
+def test_regex_match_rejects_alias_operands():
+    with pytest.raises(DslError):
+        matches(name("x").alias("y"), "A")
+    with pytest.raises(DslError):
+        matches(name("x"), name("y").alias("z"))
+
+
+def test_concat_renders_the_double_pipe():
+    assert _render(concat("Neo", "4j")) == "RETURN 'Neo' || '4j'"
+    assert _render(concat(name("a"), name("b"))) == "RETURN a || b"
+    assert _render(concat(name("a"), param("suffix"))) == "RETURN a || $suffix"
+
+
+def test_concat_binds_at_the_additive_level():
+    x, y, z = name("x"), name("y"), name("z")
+    assert _render(concat(x, y) * 2) == "RETURN (x || y) * 2"
+    assert _render(concat(concat(x, y), z)) == "RETURN x || y || z"
+    assert _render(concat(x, concat(y, z))) == "RETURN x || (y || z)"
+
+
+def test_concat_is_a_binary_operation():
+    operation = concat("a", "b")
+    assert isinstance(operation, BinaryOperation)
+    assert operation.operator == "||"
+
+
+def test_concat_rejects_alias_operands():
+    with pytest.raises(DslError):
+        concat(name("x").alias("y"), "a")
+    with pytest.raises(DslError):
+        concat(name("x"), name("y").alias("z"))
+
+
+def test_xor_operator_builds_a_condition():
+    a, b = name("a"), name("b")
+    combined = (a > 1) ^ (b < 2)
+    assert isinstance(combined, BinaryOperation)
+    assert isinstance(combined, Condition)
+    assert _render(combined) == "RETURN a > 1 XOR b < 2"
+
+
+def test_xor_groups_against_and_or_and_not():
+    a, b, c = name("a"), name("b"), name("c")
+    assert _render((a > 1) ^ (b < 2) & (c > 3)) == "RETURN a > 1 XOR b < 2 AND c > 3"
+    assert _render((a > 1) ^ ((b < 2) | (c == "value"))) == "RETURN a > 1 XOR (b < 2 OR c = 'value')"
+    assert _render(((a > 1) ^ (b < 2)) | (c > 3)) == "RETURN a > 1 XOR b < 2 OR c > 3"
+    assert _render(~((a > 1) ^ (b < 2))) == "RETURN NOT (a > 1 XOR b < 2)"
+    assert _render((a > 1) ^ (b < 2) ^ (c > 3)) == "RETURN a > 1 XOR b < 2 XOR c > 3"
+
+
+def test_boolean_operation_accepts_xor():
+    combined = boolean_operation("xor", condition(name("a")), condition(name("b")))
+    assert _render(combined) == "RETURN a XOR b"
 
 
 def test_static_property_access_is_a_named_property():

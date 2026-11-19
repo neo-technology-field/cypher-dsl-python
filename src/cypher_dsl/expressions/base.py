@@ -32,13 +32,14 @@ class Precedence(IntEnum):
     """
 
     OR = 0
-    AND = 1
-    NOT = 2
-    COMPARISON = 3
-    ADDITIVE = 4
-    MULTIPLICATIVE = 5
-    UNARY = 6
-    ATOM = 7
+    XOR = 1
+    AND = 2
+    NOT = 3
+    COMPARISON = 4
+    ADDITIVE = 5
+    MULTIPLICATIVE = 6
+    UNARY = 7
+    ATOM = 8
 
 
 class NamedExpression(ABC):
@@ -208,6 +209,12 @@ class Expression(AstNode):
         from cypher_dsl.expressions.operators import boolean_operation
 
         return boolean_operation("OR", self, other)
+
+    def __xor__(self, other: Condition) -> Condition:
+        """Build an exclusive disjunction. Python's ``^`` maps to ``XOR``."""
+        from cypher_dsl.expressions.operators import boolean_operation
+
+        return boolean_operation("XOR", self, other)
 
     def __invert__(self) -> Condition:
         """Build a negation. Python's ``not`` cannot be overloaded."""
